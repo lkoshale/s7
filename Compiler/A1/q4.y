@@ -20,7 +20,8 @@
 
 %%
 
-st :  function_star {printf("mul\n");exit(0);}
+st :  function_star RP {printf("mul\n");exit(0);}
+	| expr
     ;
 
 start : expr            {printf("expr\n");exit(0);}
@@ -30,8 +31,8 @@ start : expr            {printf("expr\n");exit(0);}
         | END_OF_FILE  {printf("eof\n");exit(0);}
         ;
 
-function_star : function  {printf("fn\n");} END_OF_FILE   
-                | function_star {printf("fnstar\n");} function
+function_star :  RP  function_h {printf("empty\n");}
+                | function_h   {printf("fn2\n");}  function_star {printf("fnstar\n");}    
                 ;
 
 function_decl : type IDENT LSB arg_decl_star RSB SMCOL
@@ -41,12 +42,19 @@ function : type IDENT LSB arg_decl RSB LP statement RP
         | type IDENT LSB arg_decl RSB LP RP
           ;
 
+
+function_h : type IDENT LSB arg_decl RSB LP statement 
+        | type IDENT LSB arg_decl RSB LP
+          ;
+
+
+
 arg_decl_star :  COMA type IDENT
                 | COMA type IDENT LB RB
                 | arg_decl_star COMA  type IDENT 
                 ;
 
-arg_decl : %empty
+arg_decl : 
         | type IDENT
         | type IDENT LB RB
         | type IDENT LB RB arg_decl_star
