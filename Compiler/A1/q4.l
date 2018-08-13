@@ -11,6 +11,7 @@
 "/"["/"]+.*                  { }
 "'"(.|\\.)"'"               { return CHARLITERAL;}
 \"(\\.|[^"\\])*\"           { return STRING; }
+<<EOF>>                     { return END_OF_FILE;}
 "if"                        { return IF; }
 "else"                      { return ELSE; }
 "for"                       { return FOR; }
@@ -32,7 +33,8 @@
 "'"                           { return SNQUOTE; }    
 ">"|"<"|"=="|"<="|">="|"!="    {  return RELOP;   }
 "&&"|"||"                     {  return LOGOP;   }
-"="|"+="|"-="|"*="|"/="|"%="    {  return ASGNOP;  }
+"="                             { return EQL; }
+"+="|"-="|"*="|"/="|"%="    {  return ASGNOP;  }
 "++"|"--"                       { return INCOP; }
 "+"                           { return ADD; }     
 "-"                           { return MINUS; }

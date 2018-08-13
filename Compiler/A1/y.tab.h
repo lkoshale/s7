@@ -80,7 +80,9 @@ extern int yydebug;
     STRING = 290,
     CHARLITERAL = 291,
     COMA = 292,
-    INCOP = 293
+    INCOP = 293,
+    EQL = 294,
+    END_OF_FILE = 295
   };
 #endif
 /* Tokens.  */
@@ -120,6 +122,8 @@ extern int yydebug;
 #define CHARLITERAL 291
 #define COMA 292
 #define INCOP 293
+#define EQL 294
+#define END_OF_FILE 295
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED

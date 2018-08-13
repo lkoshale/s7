@@ -12,7 +12,7 @@
 %token RELOP LOGOP ASGNOP 
 %token ADD MINUS DIV STAR PERCNT NOT AMPRESAND SMCOL
 %token IDENT NUM STRING CHARLITERAL
-%token COMA INCOP
+%token COMA INCOP EQL END_OF_FILE
 
 %left ADD MINUS
 %left DIV STAR PERCNT
@@ -20,18 +20,56 @@
 
 %%
 
-start : expr
-        | declaration
-        | unary_op
+st :  function_star {printf("mul\n");exit(0);}
+    ;
+
+start : expr            {printf("expr\n");exit(0);}
+        | statement     {printf("statement\n");exit(0);}
+        | declaration   {printf("declaration\n");exit(0);}
+        | unary_op      {printf("unaryop\n");exit(0);}
+        | END_OF_FILE  {printf("eof\n");exit(0);}
         ;
 
-declaration : type IDENT SMCOL
-            | type IDENT multiple_decl SMCOL
+function_star : function  {printf("fn\n");} END_OF_FILE   
+                | function_star {printf("fnstar\n");} function
+                ;
+
+function_decl : type IDENT LSB arg_decl_star RSB SMCOL
+              ;
+
+function : type IDENT LSB arg_decl RSB LP statement RP
+        | type IDENT LSB arg_decl RSB LP RP
+          ;
+
+arg_decl_star :  COMA type IDENT
+                | COMA type IDENT LB RB
+                | arg_decl_star COMA  type IDENT 
+                ;
+
+arg_decl : %empty
+        | type IDENT
+        | type IDENT LB RB
+        | type IDENT LB RB arg_decl_star
+        | type IDENT arg_decl_star
+        ;
+
+
+declaration : declaration_type SMCOL
+            | declaration_type multiple_decl_star SMCOL
             ;
 
-multiple_decl : IDENT
-              | COMA IDENT
-              | COMA IDENT multiple_decl
+declaration_type : type IDENT
+            | type IDENT EQL primary_expr
+            | type IDENT LB primary_expr RB
+            ;
+
+multiple_decl_star : multiple_decl
+                | multiple_decl multiple_decl_star
+              ;
+
+multiple_decl : COMA IDENT
+              | COMA IDENT EQL primary_expr
+              | COMA IDENT LB primary_expr RB
               ;
 
 type : INT 
@@ -41,9 +79,10 @@ type : INT
      ;
 
 statement : block_statement
+         | declaration
          |  if_stmnt
          | WHILE LSB rel_expr RSB statement
-         | IDENT ASGNOP expr SMCOL
+         | IDENT assgn_op expr SMCOL
          | FOR LSB for_expr RSB statement
          ;
 
@@ -55,7 +94,7 @@ if_stmnt : IF LSB rel_expr RSB statement
          | IF LSB rel_expr RSB statement ELSE statement
          ;
 
-for_expr : IDENT ASGNOP expr SMCOL rel_expr SMCOL expr
+for_expr : IDENT EQL expr SMCOL rel_expr SMCOL expr  
          ;
 
 multiple_statement : statement 
@@ -71,6 +110,10 @@ expr :  primary_expr binary_op primary_expr
 
 rel_expr : primary_expr LOGOP primary_expr
          | primary_expr RELOP primary_expr
+         | rel_expr_star
+         ;
+
+rel_expr_star : rel_expr rel_expr_star 
          | rel_expr LOGOP primary_expr
          | rel_expr RELOP primary_expr
          ;
@@ -100,6 +143,10 @@ binary_op : ADD
           | DIV
           | PERCNT
           ;
+
+assgn_op : ASGNOP
+         | EQL
+         ;
 
 %%
 
