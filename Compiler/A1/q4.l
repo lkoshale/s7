@@ -45,7 +45,7 @@
 ";"                           { return SMCOL; }
 ","                             { return COMA; }
 "main"                        {return MAIN;}
-[+-]?([0-9]*[.])?[0-9]+       {  return NUM; }                        
+([0-9]*[.])?[0-9]+       {  return NUM; }                        
 [_A-Za-z][_A-Za-z0-9]*        { return IDENT;} 
 [ \t\n]                        {}
 .                         { yyerror(" dot occured");}

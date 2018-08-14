@@ -25,7 +25,6 @@ prog : main                              {printf("main\n");}
         | decl_fun_fun_decl_star  main         {printf("decl main\n");}
         | main decl_fun_star                 {printf("fn main\n");}
         | decl_fun_fun_decl_star main decl_fun_star   {printf("decl fn main\n");} 
-        | expr
         ;
 
 decl_fun_star : decl_fun
@@ -101,8 +100,9 @@ statement : block_statement
          | variable_name assgn_op expr SMCOL
          | variable_name LB expr RB assgn_op expr SMCOL
          | FOR LSB for_expr RSB statement
-         | function_call
+         | function_call SMCOL
          | RETURN expr SMCOL
+         | RETURN SMCOL
          | BREAK SMCOL
          | CONTINUE SMCOL
          ;
@@ -115,18 +115,31 @@ if_stmnt : IF LSB rel_expr_star RSB statement
          | IF LSB rel_expr_star RSB statement ELSE statement
          ;
 
-for_expr : variable_name EQL expr SMCOL rel_expr SMCOL expr  
+for_expr : for_first SMCOL for_second SMCOL for_third 
          ;
+
+for_first : /*empty*/
+         | variable_name EQL expr
+         ;
+
+for_second : /*empty*/
+           | rel_expr
+           ;
+
+for_third : /*empty*/
+        | expr
+        ;
 
 multiple_statement : statement 
                     | multiple_statement statement
                     ;
 
 
-function_call : IDENT LSB arguments RSB SMCOL
+function_call : IDENT LSB arguments RSB
               ;
 
-arguments : expr
+arguments : /*empty*/
+        | expr
         | expr argument_rest
         ;
 
@@ -149,17 +162,18 @@ rel_expr_m :  rel_expr LOGOP primary_expr
           | rel_expr RELOP primary_expr
          ;
 
-expr :  primary_expr binary_op primary_expr 
-        | expr binary_op primary_expr
-        | primary_expr
+expr :  primary_expr binary_op primary_expr /*{fprintf(stderr,"%s","expr bin\n");}*/
+        | expr binary_op primary_expr       /*{fprintf(stderr,"%s","pr bin\n");}*/
+        | primary_expr                     /* {fprintf(stderr,"%s","pr\n");}*/
         | rel_expr       
+        | function_call
         ;
-
 
 
 primary_expr : IDENT
              | NUM
              | STRING
+             | IDENT LB expr RB 
              | LSB expr RSB
              | STAR primary_expr
              | MINUS primary_expr
@@ -167,6 +181,7 @@ primary_expr : IDENT
              | AMPRESAND primary_expr
              | primary_expr INCOP
              | INCOP primary_expr
+             ;
 
 
 binary_op : ADD
