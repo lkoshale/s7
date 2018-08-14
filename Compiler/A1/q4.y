@@ -4,6 +4,7 @@
     #include <stdlib.h>
     void yyerror(char *);
     int yylex(void);
+    
 %}
 
 %token IF ELSE FOR INT CHAR DOUBLE VOID 
@@ -11,8 +12,8 @@
 %token LP RP LB RB LSB RSB DBQUOTE SNQUOTE
 %token RELOP LOGOP ASGNOP 
 %token ADD MINUS DIV STAR PERCNT NOT AMPRESAND SMCOL
-%token IDENT NUM STRING CHARLITERAL
-%token COMA INCOP EQL END_OF_FILE
+%token IDENT NUM STRING CHARLITERAL 
+%token COMA INCOP EQL MAIN ARGC ARGV
 
 %left ADD MINUS
 %left DIV STAR PERCNT
@@ -20,45 +21,52 @@
 
 %%
 
-st :  function_star RP {printf("mul\n");exit(0);}
-	| expr
-    ;
-
-start : expr            {printf("expr\n");exit(0);}
-        | statement     {printf("statement\n");exit(0);}
-        | declaration   {printf("declaration\n");exit(0);}
-        | unary_op      {printf("unaryop\n");exit(0);}
-        | END_OF_FILE  {printf("eof\n");exit(0);}
+prog : main                              {printf("main\n");}
+        | decl_fun_fun_decl_star  main         {printf("decl main\n");}
+        | main decl_fun_star                 {printf("fn main\n");}
+        | decl_fun_fun_decl_star main decl_fun_star   {printf("decl fn main\n");} 
+        | expr
         ;
 
-function_star :  RP  function_h {printf("empty\n");}
-                | function_h   {printf("fn2\n");}  function_star {printf("fnstar\n");}    
-                ;
+decl_fun_star : decl_fun
+            | decl_fun_star decl_fun
+            ;
 
-function_decl : type IDENT LSB arg_decl_star RSB SMCOL
+decl_fun : declaration
+        | function
+        ;
+
+
+decl_fun_fun_decl_star : decl_fun_fun_decl
+                        | decl_fun_fun_decl_star decl_fun_fun_decl
+                        ;
+
+decl_fun_fun_decl : declaration
+                    | function
+                    | function_decl
+                    ;
+
+main : type  MAIN LSB RSB block_statement
+     | type MAIN LSB INT STAR IDENT COMA CHAR STAR IDENT LB RB RSB block_statement
+     ;
+
+function_decl : type variable_name LSB arg_decl RSB SMCOL
               ;
 
-function : type IDENT LSB arg_decl RSB LP statement RP
-        | type IDENT LSB arg_decl RSB LP RP
+function : type variable_name LSB arg_decl RSB block_statement
           ;
 
-
-function_h : type IDENT LSB arg_decl RSB LP statement 
-        | type IDENT LSB arg_decl RSB LP
-          ;
-
-
-
-arg_decl_star :  COMA type IDENT
-                | COMA type IDENT LB RB
-                | arg_decl_star COMA  type IDENT 
+arg_decl_star :  COMA type variable_name
+                | COMA type variable_name LB RB
+                | arg_decl_star COMA  type variable_name 
+                | arg_decl_star COMA type variable_name LB RB 
                 ;
 
-arg_decl : 
-        | type IDENT
-        | type IDENT LB RB
-        | type IDENT LB RB arg_decl_star
-        | type IDENT arg_decl_star
+arg_decl : /*empty*/
+        | type variable_name
+        | type variable_name LB RB
+        | type variable_name LB RB arg_decl_star
+        | type variable_name arg_decl_star
         ;
 
 
@@ -66,18 +74,18 @@ declaration : declaration_type SMCOL
             | declaration_type multiple_decl_star SMCOL
             ;
 
-declaration_type : type IDENT
-            | type IDENT EQL primary_expr
-            | type IDENT LB primary_expr RB
+declaration_type : type variable_name
+            | type variable_name EQL expr
+            | type variable_name LB expr RB
             ;
 
 multiple_decl_star : multiple_decl
-                | multiple_decl multiple_decl_star
+                | multiple_decl_star multiple_decl
               ;
 
-multiple_decl : COMA IDENT
-              | COMA IDENT EQL primary_expr
-              | COMA IDENT LB primary_expr RB
+multiple_decl : COMA variable_name
+              | COMA variable_name EQL expr
+              | COMA variable_name LB expr RB
               ;
 
 type : INT 
@@ -89,25 +97,57 @@ type : INT
 statement : block_statement
          | declaration
          |  if_stmnt
-         | WHILE LSB rel_expr RSB statement
-         | IDENT assgn_op expr SMCOL
+         | WHILE LSB rel_expr_star RSB statement
+         | variable_name assgn_op expr SMCOL
+         | variable_name LB expr RB assgn_op expr SMCOL
          | FOR LSB for_expr RSB statement
+         | function_call
+         | RETURN expr SMCOL
+         | BREAK SMCOL
+         | CONTINUE SMCOL
          ;
 
 block_statement : LP multiple_statement RP
                 | LP RP
                 ;
 
-if_stmnt : IF LSB rel_expr RSB statement
-         | IF LSB rel_expr RSB statement ELSE statement
+if_stmnt : IF LSB rel_expr_star RSB statement
+         | IF LSB rel_expr_star RSB statement ELSE statement
          ;
 
-for_expr : IDENT EQL expr SMCOL rel_expr SMCOL expr  
+for_expr : variable_name EQL expr SMCOL rel_expr SMCOL expr  
          ;
 
 multiple_statement : statement 
-                    | statement multiple_statement
+                    | multiple_statement statement
                     ;
+
+
+function_call : IDENT LSB arguments RSB SMCOL
+              ;
+
+arguments : expr
+        | expr argument_rest
+        ;
+
+argument_rest : COMA expr
+              | argument_rest COMA expr
+              ;
+
+
+rel_expr_star : rel_expr
+              | rel_expr_m
+              | rel_expr rel_expr_star
+              | rel_expr_m rel_expr_star
+              ;
+
+rel_expr : primary_expr LOGOP primary_expr
+         | primary_expr RELOP primary_expr
+         ;
+
+rel_expr_m :  rel_expr LOGOP primary_expr
+          | rel_expr RELOP primary_expr
+         ;
 
 expr :  primary_expr binary_op primary_expr 
         | expr binary_op primary_expr
@@ -115,16 +155,6 @@ expr :  primary_expr binary_op primary_expr
         | rel_expr       
         ;
 
-
-rel_expr : primary_expr LOGOP primary_expr
-         | primary_expr RELOP primary_expr
-         | rel_expr_star
-         ;
-
-rel_expr_star : rel_expr rel_expr_star 
-         | rel_expr LOGOP primary_expr
-         | rel_expr RELOP primary_expr
-         ;
 
 
 primary_expr : IDENT
@@ -137,13 +167,7 @@ primary_expr : IDENT
              | AMPRESAND primary_expr
              | primary_expr INCOP
              | INCOP primary_expr
-             ;
 
-unary_op : ADD
-        | MINUS
-        | NOT
-        | AMPRESAND
-        ;
 
 binary_op : ADD
           | MINUS
@@ -155,6 +179,10 @@ binary_op : ADD
 assgn_op : ASGNOP
          | EQL
          ;
+
+variable_name : IDENT
+                | STAR IDENT
+                ;
 
 %%
 

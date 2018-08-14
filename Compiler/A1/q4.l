@@ -11,7 +11,6 @@
 "/"["/"]+.*                  { }
 "'"(.|\\.)"'"               { return CHARLITERAL;}
 \"(\\.|[^"\\])*\"           { return STRING; }
-<<EOF>>                     { return END_OF_FILE;}
 "if"                        { return IF; }
 "else"                      { return ELSE; }
 "for"                       { return FOR; }
@@ -45,6 +44,7 @@
 "&"                           { return AMPRESAND; }
 ";"                           { return SMCOL; }
 ","                             { return COMA; }
+"main"                        {return MAIN;}
 [+-]?([0-9]*[.])?[0-9]+       {  return NUM; }                        
 [_A-Za-z][_A-Za-z0-9]*        { return IDENT;} 
 [ \t\n]                        {}
@@ -52,8 +52,8 @@
 
 %%
 
-int yywrap(){
-    return 0;
+int yywrap(void) {
+    return 1;       //return 0 for interactive parser
 }
 
 // main()
