@@ -28,9 +28,11 @@
 "}"                         { return RP; }
 "("                         { return LSB; }
 ")"                          { return RSB; }
-"\""                         { return  DBQUOTE; }
+"\""                         { return  DBQUOTE; }                          
 "'"                           { return SNQUOTE; }    
-">"|"<"|"=="|"<="|">="|"!="    {  return RELOP;   }
+">"                           { return GREATER;}
+"<"                           { return LESSER;}
+"=="|"<="|">="|"!="    {  return RELOP;   }
 "&&"|"||"                     {  return LOGOP;   }
 "="                             { return EQL; }
 "+="|"-="|"*="|"/="|"%="    {  return ASGNOP;  }
@@ -43,7 +45,9 @@
 "!"                           { return NOT; }
 "&"                           { return AMPRESAND; }
 ";"                           { return SMCOL; }
+":"                           { return COLON;}
 ","                             { return COMA; }
+"^^"                          { return POW; }
 "main"                        {return MAIN;}
 ([0-9]*[.])?[0-9]+       {  return NUM; }                        
 [_A-Za-z][_A-Za-z0-9]*        { return IDENT;} 

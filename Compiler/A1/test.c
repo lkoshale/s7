@@ -6,6 +6,7 @@ int main(int ar , char* vr[]){
     int *p;
     int a,b;
     printf("%d",ar);
-    (*p++)++;
+    (*p)++;
     return main;
 }
+

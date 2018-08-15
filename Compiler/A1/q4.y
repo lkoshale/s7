@@ -4,6 +4,9 @@
     #include <stdlib.h>
     void yyerror(char *);
     int yylex(void);
+
+    int var_mul_assgn_lhs = 0;
+    int var_mul_assgn_rhs = 0;
     
 %}
 
@@ -11,7 +14,8 @@
 %token WHILE CONTINUE BREAK RETURN 
 %token LP RP LB RB LSB RSB DBQUOTE SNQUOTE
 %token RELOP LOGOP ASGNOP 
-%token ADD MINUS DIV STAR PERCNT NOT AMPRESAND SMCOL
+%token ADD MINUS DIV STAR PERCNT NOT AMPRESAND SMCOL POW
+%token GREATER LESSER COLON
 %token IDENT NUM STRING CHARLITERAL 
 %token COMA INCOP EQL MAIN ARGC ARGV
 
@@ -101,10 +105,13 @@ statement : block_statement
          | variable_name LB expr RB assgn_op expr SMCOL
          | FOR LSB for_expr RSB statement
          | function_call SMCOL
+         | multiple_assgn
          | RETURN expr SMCOL
          | RETURN SMCOL
          | BREAK SMCOL
          | CONTINUE SMCOL
+         | variable_name INCOP SMCOL                     /*gives error  at array assgnment*/
+          | INCOP variable_name SMCOL 
          ;
 
 block_statement : LP multiple_statement RP
@@ -134,6 +141,17 @@ multiple_statement : statement
                     | multiple_statement statement
                     ;
 
+multiple_assgn : assgn_lhs LESSER MINUS assgn_rhs SMCOL     {if(var_mul_assgn_lhs!=var_mul_assgn_rhs){yyerror("multiple_assgn eror\n");} else{ var_mul_assgn_lhs=0; var_mul_assgn_rhs=0;} }
+                ;
+
+assgn_lhs : variable_name                               {var_mul_assgn_lhs++;}
+                  | assgn_lhs COLON variable_name       {var_mul_assgn_lhs++;}
+                  ;
+
+assgn_rhs : expr                                        {var_mul_assgn_rhs++;}
+          | assgn_rhs COLON expr                         {var_mul_assgn_rhs++;}
+          ;
+
 
 function_call : IDENT LSB arguments RSB
               ;
@@ -150,22 +168,26 @@ argument_rest : COMA expr
 
 rel_expr_star : rel_expr
               | rel_expr_m
-              | rel_expr rel_expr_star
-              | rel_expr_m rel_expr_star
+              | rel_expr LOGOP rel_expr_star    {fprintf(stderr,"%s","rel rel st\n");}    
+              | rel_expr_m LOGOP rel_expr_star
               ;
 
-rel_expr : primary_expr LOGOP primary_expr
-         | primary_expr RELOP primary_expr
+rel_expr : expr_ LOGOP expr_            {fprintf(stderr,"%s","expr log\n");}
+         | expr_ rel_op expr_            {fprintf(stderr,"%s","expr relog\n");}
          ;
 
-rel_expr_m :  rel_expr LOGOP primary_expr
-          | rel_expr RELOP primary_expr
+rel_expr_m :  rel_expr LOGOP expr_
+          | rel_expr rel_op expr_
          ;
 
-expr :  primary_expr binary_op primary_expr /*{fprintf(stderr,"%s","expr bin\n");}*/
+
+
+expr : expr_
+     ;
+
+expr_ :  primary_expr binary_op primary_expr /*{fprintf(stderr,"%s","expr bin\n");}*/
         | expr binary_op primary_expr       /*{fprintf(stderr,"%s","pr bin\n");}*/
-        | primary_expr                     /* {fprintf(stderr,"%s","pr\n");}*/
-        | rel_expr       
+        | primary_expr                     /* {fprintf(stderr,"%s","pr\n");}*/       
         | function_call
         ;
 
@@ -179,24 +201,32 @@ primary_expr : IDENT
              | MINUS primary_expr
              | NOT primary_expr
              | AMPRESAND primary_expr
-             | primary_expr INCOP
-             | INCOP primary_expr
+             | inc_op 
              ;
 
+inc_op : primary_expr INCOP
+             | INCOP primary_expr
+             ;
 
 binary_op : ADD
           | MINUS
           | STAR
           | DIV
           | PERCNT
+          | POW
           ;
 
 assgn_op : ASGNOP
          | EQL
          ;
 
+rel_op : RELOP
+        | GREATER
+        | LESSER
+        ;
+
 variable_name : IDENT
-                | STAR IDENT
+                | STAR variable_name
                 ;
 
 %%

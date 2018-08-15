@@ -75,16 +75,20 @@ extern int yydebug;
     NOT = 285,
     AMPRESAND = 286,
     SMCOL = 287,
-    IDENT = 288,
-    NUM = 289,
-    STRING = 290,
-    CHARLITERAL = 291,
-    COMA = 292,
-    INCOP = 293,
-    EQL = 294,
-    MAIN = 295,
-    ARGC = 296,
-    ARGV = 297
+    POW = 288,
+    GREATER = 289,
+    LESSER = 290,
+    COLON = 291,
+    IDENT = 292,
+    NUM = 293,
+    STRING = 294,
+    CHARLITERAL = 295,
+    COMA = 296,
+    INCOP = 297,
+    EQL = 298,
+    MAIN = 299,
+    ARGC = 300,
+    ARGV = 301
   };
 #endif
 /* Tokens.  */
@@ -118,16 +122,20 @@ extern int yydebug;
 #define NOT 285
 #define AMPRESAND 286
 #define SMCOL 287
-#define IDENT 288
-#define NUM 289
-#define STRING 290
-#define CHARLITERAL 291
-#define COMA 292
-#define INCOP 293
-#define EQL 294
-#define MAIN 295
-#define ARGC 296
-#define ARGV 297
+#define POW 288
+#define GREATER 289
+#define LESSER 290
+#define COLON 291
+#define IDENT 292
+#define NUM 293
+#define STRING 294
+#define CHARLITERAL 295
+#define COMA 296
+#define INCOP 297
+#define EQL 298
+#define MAIN 299
+#define ARGC 300
+#define ARGV 301
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
