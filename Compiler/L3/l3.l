@@ -5,14 +5,17 @@
 #include <stdlib.h>
 #include "y.tab.h"
 
-int line_no = 0;
+int line_no = 1;
+void yyerror(char *);
+
 
 %}
 
 %%
 "int"                       { return INT; }
 ";"                         { return SMCOL; }
-"="                         {return EQL; }
+","                         { return COMA;}
+"="                         { return EQL; }
 "+"                         { return ADD; }
 "-"                         { return MINUS; }
 "/"                         { return DIV; }
@@ -22,7 +25,8 @@ int line_no = 0;
 [0-9]+                      { yylval.num = atoi(yytext); return NUM; }
 [_A-Za-z][_A-Za-z0-9]*       { strcpy(yylval.string,yytext); return IDENT; }
 [\n]                        { line_no++;}
-.                           {}
+[ \t]                       {}
+.                           {yyerror("Invalid Input");}
 
 
 %%
