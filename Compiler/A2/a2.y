@@ -6,7 +6,10 @@
     void yyerror(char *);
     int yylex(void);
 
+    int tree_len = 0;
+
     typedef struct node{
+        int id;
         char val[100];
         struct node* edge[1000];
         int len;
@@ -15,6 +18,22 @@
     Node* new_node(char* str);
     void add_child(Node* root,Node* child);
     void print_tree(Node* root);
+
+    Node* queue[1000];
+    int queue_len;
+    void make_queue();
+    void qpush(Node* ptr);
+    Node* qpop();
+    Node* qtop();
+    int qempty();
+
+    typedef struct ret{
+        struct node* ptr;
+        int pathlen;
+    } pair; 
+
+    pair bfs(Node* root);
+    pair max_path(Node* root);
 
 %}
 
@@ -39,7 +58,7 @@
 
 
 
-program : dec_list              { $$=new_node("program");add_child($$,$1);print_tree($$);}
+program : dec_list              { $$=new_node("program");add_child($$,$1); max_path($$);}
         ;
 
 dec_list : decl                 { $$=new_node("dec_list");add_child($$,$1);}
@@ -64,7 +83,7 @@ type_spec : VOID            { $$=new_node("type_spec");add_child($$,$1);}
         | FLOAT STAR        { $$=new_node("type_spec");add_child($$,$1);add_child($$,$2);}
         ;
 
-fun_decl : type_spec identifier LP params RP compound_stmt  { $$=new_node("fun_decl");add_child($$,$1); add_child($$,$2);add_child($$,$3);add_child($$,$4);add_child($$,$5);add_child($$,$6);}
+fun_decl : type_spec identifier LP params RP compound_stmt  { $$=new_node("fun_decl");add_child($$,$1); add_child($$,$2);add_child($$,$3);add_child($$,$4);add_child($$,$5);add_child($$,$6); }
         ;
 
 params : /* expr */                     {$$=NULL;}
@@ -85,7 +104,7 @@ stmt_list :  stmt_list stmt                 { $$=new_node("stmt_list");add_child
 
 stmt : assign_stmt                          { $$=new_node("stmt");add_child($$,$1);}  
     | compound_stmt                         { $$=new_node("stmt");add_child($$,$1);}
-    | if_stmt                               { $$=new_node("stmt");add_child($$,$1);}
+    | if_stmt                               { $$=new_node("stmt");add_child($$,$1); }
     | while_stmt                            { $$=new_node("stmt");add_child($$,$1);}
     | return_stmt                           { $$=new_node("stmt");add_child($$,$1);}
     | break_stmt                            { $$=new_node("stmt");add_child($$,$1);}
@@ -103,7 +122,7 @@ local_decls : /*empty*/                             { $$=NULL;}
             ;
 
 local_decl : type_spec identifier SMCOL             { $$=new_node("local_decl");add_child($$,$1);add_child($$,$2);add_child($$,$3);}  
-            | type_spec identifier LB expr RB       { $$=new_node("local_decl");add_child($$,$1);add_child($$,$2);add_child($$,$3);add_child($$,$4);add_child($$,$5);}  
+            | type_spec identifier LB expr RB SMCOL      { $$=new_node("local_decl");add_child($$,$1);add_child($$,$2);add_child($$,$3);add_child($$,$4);add_child($$,$5);}  
             ;
 
 if_stmt : IF LP expr RP stmt               { $$=new_node("if_stmt");add_child($$,$1);add_child($$,$2);add_child($$,$3);add_child($$,$4);add_child($$,$5);}  
@@ -183,6 +202,9 @@ void add_child(Node* root,Node* child){
     if(root!=NULL && child!=NULL){
         root->edge[root->len]=child;
         root->len++;
+        //back pointer
+        child->edge[child->len]=root;
+        child->len++;
     }
   
 }
@@ -193,6 +215,10 @@ Node* new_node(char* str){
     if(temp!=NULL){
         strcpy(temp->val,str);
         temp->len =0;
+        
+        temp->id = tree_len;
+        tree_len++;
+
     }
     return temp;
 }
@@ -208,6 +234,86 @@ void print_tree(Node* root){
             print_tree(root->edge[i]);
         }
     }
+}
+
+void make_queue(){
+    queue_len =0;
+}
+
+void qpush(Node* ptr){
+    queue[queue_len]=ptr;
+    queue_len++;
+}
+
+Node* qpop(){
+    if(queue_len==0)
+        return NULL;
+
+    Node* temp = queue[0];
+    for(int i=1;i<queue_len;i++){
+        queue[i-1]=queue[i];
+    }
+    queue_len--;
+    return temp;
+}
+
+int qempty(){
+    if(queue_len==0)
+        return 1;
+    else 
+        return 0;
+}
+
+Node* qtop(){
+    if(queue_len==0)
+        return NULL;
+    return queue[0];
+}
+
+pair bfs(Node* root){
+    pair p;
+    p.ptr = NULL;
+    p.pathlen = 0;
+
+    int visited[tree_len];
+    memset(visited,-1,sizeof(visited));
+
+    int maxdist=0;
+
+    make_queue();
+    qpush(root);
+    visited[root->id]=0;
+    Node* maxd = root;
+
+    while(qempty()==0){
+        Node* t = qtop();
+        qpop();
+
+        for(int i=0;i<t->len;i++){
+            if(visited[t->edge[i]->id]==-1){
+                qpush(t->edge[i]);
+                visited[t->edge[i]->id] = visited[t->id] + 1;
+                if(visited[t->edge[i]->id]>maxdist){
+                    maxdist = visited[t->edge[i]->id];
+                    maxd = t->edge[i];
+                }
+            }
+        }
+    }
+
+    p.pathlen = maxdist;
+    p.ptr = maxd;
+
+    return p;
+}
+
+
+pair max_path(Node* root){
+    pair last = bfs(root);
+    pair ans = bfs(last.ptr);
+    printf("%d %s\n",last.ptr->id,last.ptr->val);
+    printf("%d %s\n",ans.pathlen,ans.ptr->val);
+    return ans;
 }
 
 int main(){
