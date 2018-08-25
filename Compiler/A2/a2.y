@@ -35,6 +35,10 @@
     pair bfs(Node* root);
     pair max_path(Node* root);
 
+    int max_if=0;
+    int max_while = 0;
+    int max_main = 0;
+
 %}
 
 %union {
@@ -58,7 +62,7 @@
 
 
 
-program : dec_list              { $$=new_node("program");add_child($$,$1); max_path($$);}
+program : dec_list              { $$=new_node("program");add_child($$,$1);pair p= max_path($$);printf("%d\n%d\n%d\n%d\n",p.pathlen,max_if,max_while,max_main);}
         ;
 
 dec_list : decl                 { $$=new_node("dec_list");add_child($$,$1);}
@@ -83,7 +87,7 @@ type_spec : VOID            { $$=new_node("type_spec");add_child($$,$1);}
         | FLOAT STAR        { $$=new_node("type_spec");add_child($$,$1);add_child($$,$2);}
         ;
 
-fun_decl : type_spec identifier LP params RP compound_stmt  { $$=new_node("fun_decl");add_child($$,$1); add_child($$,$2);add_child($$,$3);add_child($$,$4);add_child($$,$5);add_child($$,$6); }
+fun_decl : type_spec identifier LP params RP compound_stmt  { $$=new_node("fun_decl");add_child($$,$1); add_child($$,$2);add_child($$,$3);add_child($$,$4);add_child($$,$5);add_child($$,$6); if( strcmp($2->edge[0]->val,"main")==0){ pair p= max_path($$); max_main=p.pathlen; } }
         ;
 
 params : /* expr */                     {$$=NULL;}
@@ -104,8 +108,8 @@ stmt_list :  stmt_list stmt                 { $$=new_node("stmt_list");add_child
 
 stmt : assign_stmt                          { $$=new_node("stmt");add_child($$,$1);}  
     | compound_stmt                         { $$=new_node("stmt");add_child($$,$1);}
-    | if_stmt                               { $$=new_node("stmt");add_child($$,$1); }
-    | while_stmt                            { $$=new_node("stmt");add_child($$,$1);}
+    | if_stmt                               { $$=new_node("stmt");add_child($$,$1); pair p= max_path($1); if(p.pathlen > max_if){ max_if=p.pathlen;} }
+    | while_stmt                            { $$=new_node("stmt");add_child($$,$1); pair p= max_path($1); if(p.pathlen > max_while){ max_while=p.pathlen;}}
     | return_stmt                           { $$=new_node("stmt");add_child($$,$1);}
     | break_stmt                            { $$=new_node("stmt");add_child($$,$1);}
     | continue_stmt                         { $$=new_node("stmt");add_child($$,$1);}
@@ -223,18 +227,18 @@ Node* new_node(char* str){
     return temp;
 }
 
-void print_tree(Node* root){
-    if(root!=NULL){
-        printf(" %s ->",root->val);
-        for(int i=0;i<root->len;i++){
-            printf(" %s ",root->edge[i]->val);
-        }
-        printf("\n");
-        for(int i=0;i<root->len;i++){
-            print_tree(root->edge[i]);
-        }
-    }
-}
+// void print_tree(Node* root){
+//     if(root!=NULL){
+//         printf(" %s ->",root->val);
+//         for(int i=0;i<root->len;i++){
+//             printf(" %s ",root->edge[i]->val);
+//         }
+//         printf("\n");
+//         for(int i=0;i<root->len;i++){
+//             print_tree(root->edge[i]);
+//         }
+//     }
+// }
 
 void make_queue(){
     queue_len =0;
@@ -311,8 +315,8 @@ pair bfs(Node* root){
 pair max_path(Node* root){
     pair last = bfs(root);
     pair ans = bfs(last.ptr);
-    printf("%d %s\n",last.ptr->id,last.ptr->val);
-    printf("%d %s\n",ans.pathlen,ans.ptr->val);
+    // printf("%d %s\n",last.ptr->id,last.ptr->val);
+    // printf("%d %s\n",ans.pathlen,ans.ptr->val);
     return ans;
 }
 
