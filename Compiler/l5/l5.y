@@ -45,7 +45,7 @@
 
 %%
 
-start : rule_star                   {printf("%s\n","parsed sucessfully" ); print(); remove_left_rec(); print();}
+start : rule_star                   { remove_left_rec(); print();}
 
 rule_star :  rule                               { array[array_len]=$1; array_len++; }
           | rule_star rule                 { array[array_len]=$2; array_len++; }
@@ -87,7 +87,7 @@ void add_term(Terms* t, char* str){
 //print currnet grammar
 void print(){
     int i;
-    printf("%d\n",array_len);
+    // printf("%d\n",array_len);
     for(i=0;i<array_len;i++){
        Production* p = array[i];
        printf("%s : ",p->Nterm);
@@ -151,11 +151,18 @@ void remove_rec(Production* p1,Production* p2){
                 }
 
                 Terms* term2 = p2->prod[j];
-                for(k=0;k< (term2->size);k++){
-                    term3->term[k]=term2->term[k];
-                    term3->size++;
+
+                //for epsilon production
+                if(strcmp(term2->term[0],"$")==0){
+                    //add nothing
                 }
-                
+                else{
+                    for(k=0;k< (term2->size);k++){
+                        term3->term[k]=term2->term[k];
+                        term3->size++;
+                    }
+                }
+                    
                 for(k=0;k<rm_size;k++){
                     term3->term[term3->size]=remain_term[k];
                     term3->size++;
@@ -222,9 +229,16 @@ void eliminate(int idx){
                 int k=0;
                 Terms* t2 = (Terms*)malloc(sizeof(Terms));
                 t2->size=0;
-                for(k=0;k<t->size;k++){
-                    t2->term[t2->size]= t->term[k];
-                    t2->size++;
+
+                //if epsilon
+                if(strcmp(t->term[0],"$")==0){
+                    //do nothing
+                }
+                else{
+                    for(k=0;k<t->size;k++){
+                        t2->term[t2->size]= t->term[k];
+                        t2->size++;
+                    }
                 }
 
                 t2->term[t2->size]= np_name;
