@@ -9,11 +9,14 @@
     typedef struct array_{
       char* arr[100];
       int len;
+      int powr[100];
 
     } array;
 
     array* create();
     array*  complexity(array* ans, char* declr ,char* expr , char* incop );
+    void print_comp(array* t);
+    void insert_array( array* cp,char* st);
 
 %}
 
@@ -28,7 +31,7 @@
 %token STAREQ DIVEQ INT VOID MAIN INT_LIT STRING_LIT COMA FOR
 
 %token<str> IDENT 
-%type<comp> for_loop stmnt    for_loop_star
+%type<comp> for_loop stmnt  for_loop_star
 %type<exprs> exp  
 %type<str> decl inc print_stmnt print_stmnt_star rel_op
 
@@ -56,8 +59,8 @@ main : VOID MAIN LP RP LCB for_loop_star RCB
       | VOID MAIN LP RP LCB RCB
       ;
 
-for_loop_star : for_loop
-              | for_loop_star for_loop
+for_loop_star : for_loop                    { print_comp($1);}
+              | for_loop_star for_loop      { print_comp($2);}
               ;
 
 for_loop : FOR LP decl SMCOL exp SMCOL inc RP LCB stmnt RCB  {$$=complexity($10,$3,$5[0],$7);}
@@ -77,10 +80,13 @@ inc : IDENT INC                 { strcpy($$,"1");}
     | IDENT DIVEQ INT_LIT       { strcpy($$,"4");}
     ;
 
-stmnt : print_stmnt_star              { $$=create();}
-      | for_loop                      { $$=$1;}
-      | for_loop print_stmnt_star     { $$=$1;}
+stmnt :  print_stmnt_star_empty                                             { $$=create();}
+       | print_stmnt_star_empty for_loop print_stmnt_star_empty             { $$ = $2; }
       ;
+
+print_stmnt_star_empty :  /*empty*/
+                        | print_stmnt_star
+                        ;
 
 print_stmnt_star : print_stmnt
                 | print_stmnt_star  print_stmnt
@@ -104,6 +110,31 @@ void yyerror(char *s) {
 }
 
 
+void print_comp(array* t){
+    if(t!=NULL){
+
+        if(t->len==0){
+            printf("1\n");
+            return;
+        }
+
+        for(int i =0;i<t->len;i++){
+            if(t->powr[i]>1)
+                printf("%s^%d",t->arr[i],t->powr[i]);
+            else
+                printf("%s",t->arr[i]);
+            
+            if( i!= (t->len-1))
+                printf("*");
+        }
+
+    
+        printf("\n");
+
+    }
+}
+
+
 array* create(){
   array* temp = (array*)malloc(sizeof(array));
   
@@ -113,6 +144,22 @@ array* create(){
   temp->len = 0;
 
   return temp;
+}
+
+
+void insert_array( array* cp,char* st){
+
+    for(int i=0;i<cp->len;i++){
+        if( strcmp(cp->arr[i],st)==0){
+            cp->powr[i]++;
+            return;
+        }
+    }
+
+    cp->arr[cp->len] = (char*)malloc(sizeof(char)*(strlen(st)+4));
+    strcpy(cp->arr[cp->len],st);
+    cp->powr[cp->len]=1;
+    cp->len++;
 }
 
 
@@ -126,14 +173,12 @@ array*  complexity(array* ans, char* declr ,char* expr , char* incop ){
       //start with global dec--** 
       if(strcmp(declr,"-1")!=0 && strcmp(expr,"-1")==0 ){
           if(strcmp(incop,"2")==0 ){
-             ans->arr[ans->len] = (char*)malloc(sizeof(char)*(strlen(declr)+4));
-             strcpy(ans->arr[ans->len],declr);
-             ans->len++;
+             insert_array(ans,declr);
          }
          else if(strcmp(incop,"4")==0 ){
-              ans->arr[ans->len] = (char*)malloc(sizeof(char)*(strlen(declr)+10));
-              sprintf(ans->arr[ans->len],"log(%s)",declr);
-              ans->len++;
+              char temp[strlen(declr)+10];
+              sprintf(temp,"log(%s)",declr);
+              insert_array(ans,temp);
          }
 
          return ans;
@@ -142,14 +187,12 @@ array*  complexity(array* ans, char* declr ,char* expr , char* incop ){
       // if gloabl in exp start with const , global , inc++**
       if(  strcmp(declr,"-1")==0 && strcmp(expr,"-1")!=0  ){
          if(strcmp(incop,"1")==0 ){
-             ans->arr[ans->len] = (char*)malloc(sizeof(char)*(strlen(expr)+4));
-             strcpy(ans->arr[ans->len],expr);
-             ans->len++;
+             insert_array(ans,expr);
          }
          else if(strcmp(incop,"3")==0 ){
-              ans->arr[ans->len] = (char*)malloc(sizeof(char)*(strlen(expr)+10));
-              sprintf(ans->arr[ans->len],"log(%s)",expr);
-              ans->len++;
+              char temp[strlen(expr)+10];
+              sprintf(temp,"log(%s)",expr);
+              insert_array(ans,temp);
          }
 
 
