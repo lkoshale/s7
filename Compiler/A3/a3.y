@@ -868,7 +868,7 @@ Code genStmtList(node* root,Table* tbl){
 			Code st1 = genStmtList(root->child[0],tbl);
 			Code st2 = genstmt(root->child[1],tbl);
 			cd.code = (char*)malloc(sizeof(char)*(strlen(st1.code)+strlen(st2.code)+10));
-			sprintf(cd.code,"%s\n%s",st1.code,st2.code);
+			sprintf(cd.code,"\n%s\n%s\n",st1.code,st2.code);
 			return cd;
 		}
 	}
@@ -945,6 +945,7 @@ Code genstmt(node* root,Table* tbl){
 
 		}
 		else if( strcmp(root->child[0]->name,"if_stmt")==0){
+			//printf("Inside if\n");
 			if(root->child[0]->size==5){
 				Code ex = genExp(root->child[0]->child[2],tbl);
 				//store the reg and free it before gen code for stmt
@@ -980,7 +981,27 @@ Code genstmt(node* root,Table* tbl){
 				}
 			}
 		}
+		else if( strcmp(root->child[0]->name,"compound_stmt")==0){
+			return genStmtList(root->child[0]->child[2],tbl);
+		}
+		else if( strcmp(root->child[0]->name,"while_stmt")==0){
+			Code ex = genExp(root->child[0]->child[2],tbl);
+			if(ex.code!=NULL)
+				regFree(ex.reg);
+
+			Code body = genstmt(root->child[0]->child[4],tbl);
+			if(ex.code!=NULL && body.code!=NULL){
+				cd.code = (char*)malloc(sizeof(char)*(strlen(ex.code)+strlen(body.code)+200));
+				char* label1 = genLabel();
+				char* label2 = genLabel();
+
+				sprintf(cd.code,"\n jmp %s\n%s:\n%s\n %s:\n",label1,label2,body.code,label1);
+				sprintf(cd.code,"%s %s\n cmpl\t $0, %s\n jne\t %s\n",cd.code,ex.code,ex.reg,label2);
+				return cd;
+			}
+		}
 	}
+	
 
 	// printf("print %s \n",cd.code);	
 	return cd;
@@ -1160,7 +1181,7 @@ Code genExp(node* root,Table* tbl){
 					if(cd1.code!=NULL && cd2.code!=NULL){
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
 						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
-						sprintf(cd.code,"%s cmpl\t %s,%s\n sete %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n sete %%al\n movzbl\t %%al, %s\n",cd.code,cd2.reg,cd1.reg,cd1.reg);
 						regFree(cd2.reg);
 						cd.reg = cd1.reg;
 						return cd;
@@ -1174,7 +1195,7 @@ Code genExp(node* root,Table* tbl){
 					if(cd1.code!=NULL && cd2.code!=NULL){
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
 						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
-						sprintf(cd.code,"%s cmpl\t %s,%s\n setne %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setne %%al\n movzbl\t %%al, %s\n",cd.code,cd2.reg,cd1.reg,cd1.reg);
 						regFree(cd2.reg);
 						cd.reg = cd1.reg;
 						return cd;
@@ -1188,7 +1209,7 @@ Code genExp(node* root,Table* tbl){
 					if(cd1.code!=NULL && cd2.code!=NULL){
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
 						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
-						sprintf(cd.code,"%s cmpl\t %s,%s\n setle %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setle %%al\n movzbl\t %%al, %s\n",cd.code,cd2.reg,cd1.reg,cd1.reg);
 						regFree(cd2.reg);
 						cd.reg = cd1.reg;
 						return cd;
@@ -1202,7 +1223,7 @@ Code genExp(node* root,Table* tbl){
 					if(cd1.code!=NULL && cd2.code!=NULL){
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
 						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
-						sprintf(cd.code,"%s cmpl\t %s,%s\n setl %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setl %%al\n movzbl\t %%al, %s\n",cd.code,cd2.reg,cd1.reg,cd1.reg);
 						regFree(cd2.reg);
 						cd.reg = cd1.reg;
 					
@@ -1214,12 +1235,12 @@ Code genExp(node* root,Table* tbl){
 					Code cd1 = genPexp(op->child[0],tbl);
 					Code cd2 = genPexp(op->child[1],tbl);
 					
-					printf("In ge\n");
+					//printf("In ge\n");
 					if(cd1.code!=NULL && cd2.code!=NULL){
-						printf("Inside ge\n");
+					//	printf("Inside ge\n");
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
 						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
-						sprintf(cd.code,"%s cmpl\t %s,%s\n setge %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setge %%al\n movzbl\t %%al, %s\n",cd.code,cd2.reg,cd1.reg,cd1.reg);
 						regFree(cd2.reg);
 						cd.reg = cd1.reg;
 						return cd;
@@ -1233,7 +1254,7 @@ Code genExp(node* root,Table* tbl){
 					if(cd1.code!=NULL && cd2.code!=NULL){
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
 						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
-						sprintf(cd.code,"%s cmpl\t %s,%s\n setg %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setg %%al\n movzbl\t %%al, %s\n",cd.code,cd2.reg,cd1.reg,cd1.reg);
 						regFree(cd2.reg);
 						cd.reg = cd1.reg;
 						return cd;
