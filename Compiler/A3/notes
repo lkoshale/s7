@@ -1,0 +1,3 @@
+gcc -S file.c file.S
+
+gcc file.S -o file.out
