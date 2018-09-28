@@ -1020,10 +1020,11 @@ Code genExp(node* root,Table* tbl){
 
 			if( strcmp(root->child[0]->name,"!")==0){
 				Code cd1 = genPexp(root->child[1],tbl);
+				//printf("in neg\n");
 				if(cd1.code!=NULL){
 					cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+200));
 					sprintf(cd.code,"%s\n cmpl\t $0, %s\n sete\t %%al\n movzbl\t %%al, %s\n",cd1.code,cd1.reg,cd1.reg);	
-					cd.reg = cd.reg;
+					cd.reg = cd1.reg;
 					return cd;
 				}
 			}
