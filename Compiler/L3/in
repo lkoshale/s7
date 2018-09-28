@@ -1,6 +1,5 @@
 int a;
-int b,c=9;
+int ba,c=9;
 a=0;
-a+c=c;
-b=a+c;
 9*58*6965+9;
+a=a/(c-9);

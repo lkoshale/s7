@@ -1,0 +1,12 @@
+
+LAB 3 :
+
+- Calculator is implemented using Expression grammar supporting major operations as given in assignment.
+
+- To specify the precedence among operators yacc %left and %right construct are used with the one coming in lower order having higher precedence.
+
+- line number is handled by flex and its incremented whenever \n is encountered.
+
+- The type of yyval is defined using %union construct in yaac and %type is used for specifying type of non terminals in grammar.
+
+
