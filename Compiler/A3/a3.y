@@ -860,11 +860,11 @@ Code genStmtList(node* root,Table* tbl){
 		if(root->size==1){
 			
 			cd = genstmt(root->child[0],tbl);
-		     //printf("genstmnt 1 %s\n",cd.code);
+		     //printf("genstmt 1 %s\n",cd.code);
 			return cd;
 		}
 		else if(root->size==2){
-			 //printf("genstmnt 2 \n");
+			 //printf("genstmt 2 \n");
 			Code st1 = genStmtList(root->child[0],tbl);
 			Code st2 = genstmt(root->child[1],tbl);
 			cd.code = (char*)malloc(sizeof(char)*(strlen(st1.code)+strlen(st2.code)+10));
@@ -929,6 +929,55 @@ Code genstmt(node* root,Table* tbl){
 					return cd;
 				}
 				
+			}
+		}
+		else if(strcmp(root->child[0]->name,"assign_stmt")==0){
+			node* eql = root->child[0]->child[0];
+			char* id = eql->child[0]->child[0]->name;
+			Code cd1 = genExp(eql->child[1],tbl);
+			int it = TableLookup(tbl,id);
+			if(cd1.code!=NULL && it != -1){
+				cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+100));
+				sprintf(cd.code,"%s\n movl\t %s, -%d(%%rbp)\n",cd1.code,cd1.reg,it);
+				regFree(cd1.reg);
+				return cd;
+			}
+
+		}
+		else if( strcmp(root->child[0]->name,"if_stmt")==0){
+			if(root->child[0]->size==5){
+				Code ex = genExp(root->child[0]->child[2],tbl);
+				//store the reg and free it before gen code for stmt
+				if(ex.code!=NULL)
+					regFree(ex.reg);
+				
+				Code st = genstmt(root->child[0]->child[4],tbl);
+				if(ex.code!=NULL && st.code !=NULL){
+					cd.code = (char*)malloc(sizeof(char)*(strlen(ex.code)+strlen(st.code)+200));
+					char* label1 = genLabel();
+					sprintf(cd.code,"%s\n cmpl\t $0, %s\n je\t %s\n%s\n %s:\n",ex.code,ex.reg,label1,st.code,label1);
+					return cd;
+				}
+
+			}
+			else if( root->child[0]->size==7){
+				Code ex = genExp(root->child[0]->child[2],tbl);
+				//store the reg and free it before gen code for stmt
+				if(ex.code!=NULL)
+					regFree(ex.reg);
+				
+				Code ifst = genstmt(root->child[0]->child[4],tbl);
+				Code elst = genstmt(root->child[0]->child[6],tbl);
+
+				if(ex.code!=NULL && ifst.code !=NULL && elst.code !=NULL){
+					cd.code = (char*)malloc(sizeof(char)*(strlen(ex.code)+strlen(ifst.code)+strlen(elst.code)+400));
+					char* label1 = genLabel();
+					char* label2 = genLabel();
+
+					sprintf(cd.code,"%s\n cmpl\t $0, %s\n je \t %s\n %s\n jmp\t %s\n",ex.code,ex.reg,label1,ifst.code,label2);
+					sprintf(cd.code,"%s\n %s:\n %s\n %s:\n",cd.code,label1,elst.code,label2);
+					return cd;
+				}
 			}
 		}
 	}
@@ -1362,77 +1411,6 @@ Table* createTable(){
 		temp->len=0;
 	}
 	return temp;
-}
-
-
-void DFS(node *root)
-{
-	//printf("%s\n" , root->name);
-	root->h1 = 0;
-	root->h2 = 0;
-	root->max_path = 0;
-	root->mainflag = 0;
-	if(root->size == 0)
-	{
-		if(strcmp(root->name,"main") == 0)
-		{
-			root->mainflag = 1;
-		}
-		return;
-	}
-	int num = root->size;
-	int i;
-	for(i=0;i<num;i++)
-	{
-		DFS(root->child[i]);
-		if((root->child[i])->mainflag == 1)
-		{
-			root->mainflag = 1;
-		}
-		int htemp = (root->child[i])->h1 + 1;
-		int mptemp = (root->child[i])->max_path;
-		if(htemp > root->h1)
-		{
-			root->h2 = root->h1;
-			root->h1 = htemp;
-		}
-		else if(htemp >= root->h2)
-		{
-			root->h2 = htemp;
-		}
-		
-		if(mptemp >= root->max_path)
-		{
-			root->max_path = mptemp;
-		}
-	}
-	if(root->h1 + root->h2 > root->max_path)
-	{
-		root->max_path = root->h1 + root->h2;
-	}
-
-	if(strcmp(root->name,"if_stmt") == 0)
-	{
-		if(root->max_path > ifmax)
-		{
-			ifmax = root->max_path;
-		}
-	}
-	if(strcmp(root->name,"while_stmt") == 0)
-	{
-		if(root->max_path > whmax)
-		{
-			whmax = root->max_path;
-		}
-	}
-	if(strcmp(root->name,"func_decl") == 0 && root->mainflag == 1)
-	{
-		if(root->max_path > mainmax)
-		{
-			mainmax = root->max_path;
-		}
-	}
-	return;
 }
 
 
