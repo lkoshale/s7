@@ -52,7 +52,7 @@ int main() {
 
 	o = !j;
 	
-	if (o || -51) {
+	if (o || (-51)) {
 		printf("%d\n", c);
 		printf("%d\n", e);
 		printf("%d\n", g);
