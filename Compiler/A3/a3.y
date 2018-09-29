@@ -5,7 +5,7 @@
 //%type 	if_stmt return_stmt break_stmt continue_stmt assign_stmt expr Pexpr
 //%type 	integerLit floatLit identifier arg_list args
 
-%start program
+%start program 
 
 %{
 	#include <stdio.h>
@@ -43,9 +43,14 @@
 
 	int aveax=1;
 	int avedx=1;
+	int avebx=1;
 
 	char REAX[10]= "%eax";
 	char REDX[10]= "%edx";
+	char REBX[10]= "%ebx";
+
+	int labelNo = 2;
+
 
 #define YYSTYPE struct node *
 %}
@@ -717,6 +722,7 @@ Code genstmt(node* root,Table* tbl);
 Code gotoFunc(node* root);
 Code genExp(node* root,Table* tbl);
 Code genPexp(node* root,Table* tbl);
+char* genLabel();
 
 int TableLookup(Table* tbl,char* id);
 void genBottom();
@@ -942,6 +948,33 @@ Code genExp(node* root,Table* tbl){
 		
 		if(root->size==2){
 
+			if( strcmp(root->child[0]->name,"!")==0){
+				Code cd1 = genPexp(root->child[1],tbl);
+				if(cd1.code!=NULL){
+					cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+200));
+					sprintf(cd.code,"%s\n cmpl\t $0, %s\n sete\t %%al\n movzbl\t %%al, %s\n",cd1.code,cd1.reg,cd1.reg);	
+					cd.reg = cd.reg;
+					return cd;
+				}
+			}
+			else if ( strcmp(root->child[0]->name,"-")==0){
+				Code cd1 = genPexp(root->child[1],tbl);
+				if(cd1.code!=NULL){
+					cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+100));
+					sprintf(cd.code,"%s\n negl %s\n",cd1.code,cd1.reg);	
+					cd.reg = cd1.reg;
+					return cd;
+				}
+
+			}
+			else if( strcmp(root->child[0]->name,"+")==0){
+				return genPexp(root->child[1],tbl);
+			}
+			else{
+				//error
+				return cd;
+			}
+
 		}
 		else if(root->size==1){
 			
@@ -959,11 +992,16 @@ Code genExp(node* root,Table* tbl){
 					Code cd2 = genPexp(op->child[1],tbl);
 					
 					if(cd1.code!=NULL && cd2.code!=NULL){
+						
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+50));	
 						sprintf(cd.code,"%s\n%s",cd1.code,cd2.code);
 						sprintf(cd.code,"%s\naddl\t %s, %s\n",cd.code,cd2.reg,cd1.reg);
+
 						cd.reg = cd1.reg;
+						//printf("inside add condn %s %s\n",cd1.reg,cd2.reg);
 						regFree(cd2.reg);
+
+						//printf("inside add condn return\n");
 						return cd;
 					}
 				}
@@ -998,18 +1036,36 @@ Code genExp(node* root,Table* tbl){
 					Code cd2 = genPexp(op->child[1],tbl);
 					
 					if(cd1.code!=NULL && cd2.code!=NULL){
+						//using ecx esi
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
 						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						int flag = 0;
 						if(strcmp(cd1.reg,"%eax")!=0){
-							sprintf(cd.code,"%s\nmovl\t %s, %%eax\n",cd.code,cd1.reg);
+							if(aveax==1){
+								flag = 2;
+								sprintf(cd.code,"%s\nmovl\t %s, %%eax\n",cd.code,cd1.reg);
+							}
+							else{
+								flag=1;
+								sprintf(cd.code,"%s\n movl\t %%eax, %%ecx",cd.code);
+								sprintf(cd.code,"%s\nmovl\t %s, %%eax\n",cd.code,cd1.reg);
+							}
 						}
 						//use esi for 2nd op
 						sprintf(cd.code,"%s movl\t %s,%%esi\ncltd\n",cd.code,cd2.reg);
 						sprintf(cd.code,"%s\nidivl\t  %%esi\n",cd.code);
+						
+						if(flag==1){
+							sprintf(cd.code,"%s\n movl\t %%eax, %s\n",cd.code,cd1.reg);
+							sprintf(cd.code,"%s movl\t %%ecx, %%eax",cd.code); //move back
+						}
+						else if(flag==2){
+							sprintf(cd.code,"%s\n movl\t %%eax, %s\n",cd.code,cd1.reg);
+						}
+						
 						regFree(cd2.reg);
-						regFree(cd1.reg);
-						cd.reg = REAX;			//alocate reg
-						aveax = 0;
+						cd.reg = cd1.reg;
+
 						return cd;
 					}
 				}
@@ -1020,17 +1076,156 @@ Code genExp(node* root,Table* tbl){
 					if(cd1.code!=NULL && cd2.code!=NULL){
 						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
 						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+
+						int flag = 0;
 						if(strcmp(cd1.reg,"%eax")!=0){
-							sprintf(cd.code,"%s\nmovl\t %s, %%eax\n",cd.code,cd1.reg);
+							if(aveax==1){
+								sprintf(cd.code,"%s\nmovl\t %s, %%eax\n",cd.code,cd1.reg);
+							}
+							else{
+								flag=1;
+								sprintf(cd.code,"%s\n movl\t %%eax, %%ecx",cd.code);
+								sprintf(cd.code,"%s\nmovl\t %s, %%eax\n",cd.code,cd1.reg);
+							}
 						}
 						//use esi for 2nd op
 						sprintf(cd.code,"%s movl\t %s,%%esi\ncltd\n",cd.code,cd2.reg);
 						sprintf(cd.code,"%s\nidivl\t  %%esi\n",cd.code);
+
+
+						if(flag==1)
+							sprintf(cd.code,"%s movl\t %%ecx, %%eax",cd.code); //move back
+						
+						if(strcmp(cd1.reg,"%edx")!=0)
+							sprintf(cd.code,"%s\n movl\t %%edx, %s\n",cd.code,cd1.reg);
+
 						regFree(cd2.reg);
-						regFree(cd1.reg);
-						cd.reg = REDX;			//alocate reg
-						avedx = 0;
+						cd.reg = cd1.reg;			//alocate reg
 						return cd;
+					}
+				}
+				else if(  strcmp(op->name,"EQ")==0){
+					Code cd1 = genPexp(op->child[0],tbl);
+					Code cd2 = genPexp(op->child[1],tbl);
+					
+					if(cd1.code!=NULL && cd2.code!=NULL){
+						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
+						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n sete %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						regFree(cd2.reg);
+						cd.reg = cd1.reg;
+						return cd;
+						
+					}
+				}
+				else if(  strcmp(op->name,"NEQ")==0){
+					Code cd1 = genPexp(op->child[0],tbl);
+					Code cd2 = genPexp(op->child[1],tbl);
+					
+					if(cd1.code!=NULL && cd2.code!=NULL){
+						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
+						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setne %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						regFree(cd2.reg);
+						cd.reg = cd1.reg;
+						return cd;
+						
+					}
+				}
+				else if(  strcmp(op->name,"LEQ")==0){
+					Code cd1 = genPexp(op->child[0],tbl);
+					Code cd2 = genPexp(op->child[1],tbl);
+					
+					if(cd1.code!=NULL && cd2.code!=NULL){
+						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
+						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setle %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						regFree(cd2.reg);
+						cd.reg = cd1.reg;
+						return cd;
+						
+					}
+				}
+				else if(  strcmp(op->name,"<")==0){
+					Code cd1 = genPexp(op->child[0],tbl);
+					Code cd2 = genPexp(op->child[1],tbl);
+					
+					if(cd1.code!=NULL && cd2.code!=NULL){
+						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
+						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setl %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						regFree(cd2.reg);
+						cd.reg = cd1.reg;
+					
+						return cd;
+						
+					}
+				}
+				else if(  strcmp(op->name,"GEQ")==0){
+					Code cd1 = genPexp(op->child[0],tbl);
+					Code cd2 = genPexp(op->child[1],tbl);
+					
+					printf("In ge\n");
+					if(cd1.code!=NULL && cd2.code!=NULL){
+						printf("Inside ge\n");
+						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
+						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setge %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						regFree(cd2.reg);
+						cd.reg = cd1.reg;
+						return cd;
+						
+					}
+				}
+				else if(  strcmp(op->name,">")==0){
+					Code cd1 = genPexp(op->child[0],tbl);
+					Code cd2 = genPexp(op->child[1],tbl);
+					
+					if(cd1.code!=NULL && cd2.code!=NULL){
+						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+200));	
+						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						sprintf(cd.code,"%s cmpl\t %s,%s\n setg %%al\n movzbl\t %%al, %s\n",cd.code,cd1.reg,cd2.reg,cd1.reg);
+						regFree(cd2.reg);
+						cd.reg = cd1.reg;
+						return cd;
+						
+					}
+				}
+				else if(  strcmp(op->name,"AND")==0){
+					Code cd1 = genPexp(op->child[0],tbl);
+					Code cd2 = genPexp(op->child[1],tbl);
+					
+					if(cd1.code!=NULL && cd2.code!=NULL){
+						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+300));	
+						char* label1 = genLabel();
+						char* label2 = genLabel();
+						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						sprintf(cd.code,"%s cmpl\t $0, %s\n je\t %s\n",cd.code,cd1.reg,label1);
+						sprintf(cd.code,"%s cmpl\t $0, %s\n je\t %s\n",cd.code,cd2.reg,label1);
+						sprintf(cd.code,"%s movl\t $1, %s\n jmp\t %s\n",cd.code,cd1.reg,label2);
+						sprintf(cd.code,"%s %s:\n \t movl\t $0, %s\n %s:\n",cd.code,label1,cd1.reg,label2);
+						regFree(cd2.reg);
+						cd.reg = cd1.reg;
+						return cd;	
+					}
+				}
+				else if(  strcmp(op->name,"OR")==0){
+					Code cd1 = genPexp(op->child[0],tbl);
+					Code cd2 = genPexp(op->child[1],tbl);
+					
+					if(cd1.code!=NULL && cd2.code!=NULL){
+						cd.code = (char*)malloc(sizeof(char)*(strlen(cd1.code)+strlen(cd2.code)+400));	
+						char* label1 = genLabel();
+						char* label2 = genLabel();
+						char* label3 = genLabel();
+						sprintf(cd.code,"%s\n%s\n",cd1.code,cd2.code);
+						sprintf(cd.code,"%s cmpl\t $0, %s\n jne\t %s\n",cd.code,cd1.reg,label1);
+						sprintf(cd.code,"%s cmpl\t $0, %s\n je\t %s\n",cd.code,cd2.reg,label2);
+						sprintf(cd.code,"%s %s:\n movl \t $1, %s\n jmp\t %s\n",cd.code,label1,cd1.reg,label3);
+						sprintf(cd.code,"%s %s:\n movl\t $0, %s\n %s:\n",cd.code,label2,cd1.reg,label3);
+						regFree(cd2.reg);
+						cd.reg = cd1.reg;
+						return cd;	
 					}
 				}
 
@@ -1117,6 +1312,10 @@ char* getReg(){
 		temp = REDX;
 		avedx = 0;
 	}
+	else if(avebx==1){
+		temp = REBX;
+		avebx = 0;
+	}
 	
 	return temp;
 }
@@ -1128,8 +1327,17 @@ void regFree(char* reg){
 	else if( strcmp(reg,"%edx")==0){
 		avedx = 1;
 	}
+	else if( strcmp(reg,"%ebx")==0){
+		avebx = 1;
+	}
 }
 
+char* genLabel(){
+	char* temp = (char*)malloc(sizeof(char)*20);
+	sprintf(temp,".L%d",labelNo);
+	labelNo++;
+	return temp;
+}
 
 void genTop(){
 	printf(".file	\"t.c\"\n");
