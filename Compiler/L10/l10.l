@@ -7,11 +7,11 @@
 %%
 [/][*][^*]*[*]+([^*/][^*]*[*]+)*[/]       {}
 "//"[^\n]*      {}
-[0-9]+          {return INTEGER_LITERAL; }
-[0-9]+\.[0-9]*  {return FLOAT_LITERAL; }
-[0-9]*\.[0-9]+  {return FLOAT_LITERAL; }
-"\"%d\\n\"" {return INT_FORMAT_STR;}
-"\"%f\\n\"" {return FLOAT_FORMAT_STR;}
+[0-9]+          {strcpy(yylval.str,yytext);return INTEGER_LITERAL; }
+[0-9]+\.[0-9]*  {strcpy(yylval.str,yytext);return FLOAT_LITERAL; }
+[0-9]*\.[0-9]+  {strcpy(yylval.str,yytext);return FLOAT_LITERAL; }
+"\"%d\\n\"" {strcpy(yylval.str,yytext);return INT_FORMAT_STR;}
+"\"%f\\n\"" {strcpy(yylval.str,yytext);return FLOAT_FORMAT_STR;}
 ";"   {return ';'; }
 ","   {return ','; }
 "("   {return '('; }
@@ -30,7 +30,7 @@
 "return"    {return RETURN; }
 ">"         {return GT; }
 "<"         {return LT; }
-[a-zA-Z_][a-zA-Z0-9_]*  {return IDENTIFIER; }
+[a-zA-Z_][a-zA-Z0-9_]*  {strcpy(yylval.str,yytext);return IDENTIFIER; }
 [ \n\t\v]   {}
 . {}
 

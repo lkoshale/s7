@@ -4,6 +4,14 @@
 	extern int yylex();
 	void yyerror(char *s);
 
+
+	char REAX[10]="%eax";
+	char REBX[10]="%ebx";
+	char RECX[10]="%ecx";
+	char REDX[10]="%edx";
+
+	int aveax=0,avebx=0,avecx=0,avedx=0;
+
 	typedef struct code_ {
 		char* code;
 		char* reg;
@@ -11,32 +19,35 @@
 	}Code;
 
 	typedef struct vtable{
-		char* var;
-		int* type;
+		char* var[200];
+		int type[200];
 		int size;
 	} VTable;
 
-	typedef struct ftable{
-		char* name;
-		char* argtype;
-		int argsize;
-	}FTable;
+	VTable* global=(VTable*)malloc(sizeof(VTable));
+	global->size=0;
+
+	VTable* local;
+
+	void addTable(VTable* tbl,char* var,int typ);
 
 %}
 
 %union{
  char str[200];
+ int tp;
  struct code_* val;
 }
 
 
-%token INT FLOAT IF RETURN LT GT INTEGER_LITERAL FLOAT_LITERAL STRING_LITERAL PRINTF INT_FORMAT_STR FLOAT_FORMAT_STR
+%token INT FLOAT IF RETURN LT GT  STRING_LITERAL PRINTF 
 %token ';' ',' '(' ')' '{' '}' '=' '+' '*' '/' '%'
 %start program
 
-%token<str> IDENTIFIER
+%token<str> IDENTIFIER FLOAT_LITERAL INTEGER_LITERAL INT_FORMAT_STR FLOAT_FORMAT_STR
+%type<str> identifier floatLit integerLit format_str
 
-%type<Code> 
+%type<tp> type_spec;
 
 %%
 
@@ -55,12 +66,12 @@ decl
 	;
 
 var_decl
-    : type_spec identifier ';'
+    : type_spec identifier ';'    { addTable(global,$2,$1); }
 	;
 
 type_spec
-    : INT 
-	| FLOAT
+    : INT  					{ $$=1;}
+	| FLOAT 				{ $$=2;}	
 	;
 
 fun_decl
@@ -172,5 +183,15 @@ void yyerror(char *s) {
 int main(void) {
     yyparse();
     return 0;
+}
+
+
+void addTable(VTable* tbl,char* var,int typ){
+	if(tbl!=NULL){
+		tbl->var[tbl->size]=(char*)malloc(sizeof(char)*(strlen(var)+5));
+		strcpy(tbl->var[tbl->size],var);
+		tbl->type[tbl->size]=typ;
+		tbl->size+=1;
+	}
 }
 
