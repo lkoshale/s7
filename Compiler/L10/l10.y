@@ -4,16 +4,17 @@
 	extern int yylex();
 	void yyerror(char *s);
 
+	#define INT_T  100
+	#define FLOAT_T 200
+
 
 	char REAX[10]="%eax";
 	char REBX[10]="%ebx";
-	char RECX[10]="%ecx";
 	char REDX[10]="%edx";
 
-	int aveax=0,avebx=0,avecx=0,avedx=0;
+	int aveax=0,avebx=0,avedx=0;
 
 	typedef struct code_ {
-		char* code;
 		char* reg;
 		int type;
 	}Code;
@@ -27,16 +28,30 @@
 	VTable* global=(VTable*)malloc(sizeof(VTable));
 	global->size=0;
 
-	VTable* local;
+	VTable* local=NULL;
 
 	void addTable(VTable* tbl,char* var,int typ);
+	void regFree(char* reg);
+	char* getReg();
+	void createCode(char* reg, int typ);
+
+
+	typedef struct pair{
+		int typ;
+		int rt;
+	} Pair;
+
+	Pair TableLookUp(char* id);
+
+
+
 
 %}
 
 %union{
  char str[200];
  int tp;
- struct code_* val;
+ struct code_* code;
 }
 
 
@@ -48,6 +63,8 @@
 %type<str> identifier floatLit integerLit format_str
 
 %type<tp> type_spec;
+
+%type<code> Pexpr  expr
 
 %%
 
@@ -66,16 +83,26 @@ decl
 	;
 
 var_decl
-    : type_spec identifier ';'    { addTable(global,$2,$1); }
+    : type_spec identifier ';'    
+    { 
+    	if(local==NULL) { addTable(global,$2,$1); }
+    	else { addTable(local,$2,$1); }
+    }
 	;
 
 type_spec
-    : INT  					{ $$=1;}
-	| FLOAT 				{ $$=2;}	
+    : INT  					{ $$=INT_T;}
+	| FLOAT 				{ $$=FLOAT_T;}	
 	;
 
 fun_decl
-    : type_spec identifier '(' params ')' compound_stmt
+    : type_spec identifier '(' params ')' {local = (VTable*)malloc(sizeof(VTable));} compound_stmt 
+	{
+
+
+
+		local = NULL;
+    }
     ;
 
 params
@@ -131,21 +158,121 @@ assign_stmt
 	;
 
 expr 
-	: Pexpr LT Pexpr
-	| Pexpr GT Pexpr
+	: Pexpr LT Pexpr		
+	{
+		printf("\n cmpl\t %s, %s\n setl\t %%al\n movzbl\t %%al, %s\n",$3->reg,$1->reg,$1->reg);
+		regFree($3->reg);
+		$$=$1;
+
+	}
+	
+	| Pexpr GT Pexpr 		
+	{
+		printf("\n cmpl\t %s, %s\n setg\t %%al\n movzbl\t %%al, %s\n",$3->reg,$1->reg,$1->reg);
+		regFree($3->reg);
+		$$=$1;
+
+	}
+
 	| Pexpr '+' Pexpr
+	{
+		printf("\naddl\t %s, %s\n",$3->reg,$1->reg);
+		regFree($3->reg);
+		$$=$1;
+	}
+
 	| Pexpr '*' Pexpr
+	{
+		printf("\nimul\t %s, %s\n",$3->reg,$1->reg);
+		regFree($3->reg);
+		$$=$1;
+	}
 	| Pexpr '/' Pexpr
+	{
+		int flag = 0;
+		if( strcmp($1->reg,"%eax")!=0){
+			if(aveax==1){
+				flag =2;
+				printf("\nmovl\t %s, %%eax\n",$1->reg);
+			}
+			else{
+				flag=1;
+				printf("\n movl\t %%eax,  %%ecx\n");
+				printf("movl\t %s, %%eax\n",$1->reg);
+			}
+		}
+
+		printf("\nmovl\t %s, %%esi\n cltd\n",$3->reg);
+		printf("idivl\t %%esi\n");
+		if(flag==1){
+			printf("movl\t %%eax, %s\n",$1->reg);
+			printf("movl\t %%ecx, %%eax\n");
+		}
+		else if(flag==2){
+			printf("movl\t %%eax, %s\n",$1->reg);
+		}
+
+		regFree($3->reg);
+		$$=$1;
+
+	}
 	| Pexpr '%' Pexpr
-	| Pexpr
+	{
+		int flag = 0;
+		if( strcmp($1->reg,"%eax")!=0){
+			if(aveax==1){
+				flag =2;
+				printf("\nmovl\t %s, %%eax\n",$1->reg);
+			}
+			else{
+				flag=1;
+				printf("\n movl\t %%eax,  %%ecx\n");
+				printf("movl\t %s, %%eax\n",$1->reg);
+			}
+		}
+
+		printf("\nmovl\t %s, %%esi\n cltd\n",$3->reg);
+		printf("idivl\t %%esi\n");		
+
+		if(flag==1)
+			printf("movl\t %%ecx, %%eax\n");
+
+		if(strcmp($1->reg,"%edx")!=0)
+				printf("movl\t %%edx, %s\n",$1->reg );
+
+		regFree($3->reg);
+		$$=$1;
+
+	}
+	| Pexpr									{$$=$1;}
 	| identifier '(' args ')'
+	{
+
+	}
 	;
 
 Pexpr
-	: integerLit
-	| floatLit
-	| identifier
-	| '(' expr ')'
+	: integerLit                { char* reg1= getReg(); printf("\nmovl\t $%s, %s\n",$1,reg1);$$= createCode(reg1,INT_T); }
+	| floatLit     				{ char* reg1= getReg(); printf("\nmovl\t $%s, %s\n",$1,reg1);$$= createCode(reg1,FLOAT_T); }
+	| identifier   				
+	{ 
+		//table lookup
+		char* reg1= getReg(); 
+		Pair p = TableLookUp($1);
+		if(p.rt>=0){
+			printf("\nmovl\t -%d(%%rbp), %s\n",p.rt,reg1);
+			$$= createCode(reg1,p.typ);
+		}
+		else if(p.rt=-2){
+			printf("\nmovl\t %s(%%rip), %s\n",$1,reg1);
+			$$= createCode(reg1,p.typ);
+		}
+		else{
+			$$=NULL;
+		}
+
+	}  
+	| '(' expr ')'				{$$=$2;}
 	;
 
 integerLit
@@ -195,3 +322,76 @@ void addTable(VTable* tbl,char* var,int typ){
 	}
 }
 
+void top(){
+	printf(".file\t\"test.c\"\n.section\t.rodata\n");
+	printf(".LC0:\n.string\t\"%%d\n\"\n");
+}
+
+
+
+char* getReg(){
+	char* temp = NULL;
+	if(aveax==1){
+		temp = REAX;
+		aveax = 0;
+	}else if(avedx==1){
+		temp = REDX;
+		avedx = 0;
+	}
+	else if(avebx==1){
+		temp = REBX;
+		avebx = 0;
+	}
+	
+	return temp;
+}
+
+void regFree(char* reg){
+	if( strcmp(reg,"%eax")==0){
+		aveax = 1;
+	}
+	else if( strcmp(reg,"%edx")==0){
+		avedx = 1;
+	}
+	else if( strcmp(reg,"%ebx")==0){
+		avebx = 1;
+	}
+	
+}
+
+
+void createCode(char* reg, int typ){
+	Code* temp = (Code*)malloc(sizeof(code));
+	if(temp!=NULL){
+		temp->reg = reg;
+		temp->type = typ;
+	}
+	return temp;
+}
+
+Pair TableLookUp(char* id){
+	Pair p;
+	if(local!=NULL){
+		for(int i=0;i<local->size;i++){
+			if(strcmp(id,local->var[i])==0){
+				p.rt = 4*(i+1);
+				p.typ = local->type[i];
+				return p;
+			}
+		}
+	}
+	else if(global!=NULL){
+
+		for(int i=0;i<global->size;i++){
+			if(strcmp(id,global->var[i])==0){
+				p.rt = -2;
+				p.typ = global->type[i];
+				return p;
+			}
+		}
+	}
+
+	p.rt= -1;
+	p.typ = -1;
+	return p;
+}
