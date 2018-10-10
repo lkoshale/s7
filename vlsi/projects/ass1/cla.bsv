@@ -4,11 +4,14 @@ import Vector :: *;
 import ConfigReg::*;
 
 typedef 5 N_t;
+typedef 10 N_w;
 
 (* synthesize *)
 module mkTb(Empty);
 	
-	Cla_type#(N_t) c <- add;
+	Cla_type#(N_w) c <- add;				//change to N_w
+
+	Wallace_t#(N_t,N_w) m <- mul;
 
 	Integer n = valueOf(N_t);
 	
@@ -63,6 +66,20 @@ module mkTb(Empty);
 
 endmodule
 
+
+interface Wallace_t#(numeric type n_t,numeric type n_w);
+	method Action put_A(Bit#(1) a,int p);
+	method Action put_B(Bit#(1) a,int p);
+
+	method Bit#(1) get_complete();
+
+	method Bit#(1) get_SA( int p);
+	method Bit#(1) get_SB( int p);
+
+endinterface
+
+
+
 interface Cla_type#(numeric type n_t);
 	method Action put_a(Bit#(1) a,int p);
 	method Action put_b(Bit#(1) a,int p);
@@ -88,12 +105,13 @@ endinterface
 
 module add(Cla_type#(n_t));
 
+
 	Integer n = valueOf (n_t);
 	Integer n_max = n+1;
 
 	Reg#(int) value_nmax <- mkReg(fromInteger(n_max));
 	//typedef forbidden encode as bits
-//	typedef enum { Kill,Prop,Gen } Cstate deriving(Bits, Eq);
+	//typedef enum { Kill,Prop,Gen } Cstate deriving(Bits, Eq);
 
 	Reg#(Bit#(1)) flag_input <-mkReg(0);
 
@@ -285,7 +303,7 @@ module add(Cla_type#(n_t));
 	
 
 	
-		/*
+/*
 	rule check_recursive(flag_com_carry2==1);
 		Integer idx = n -1;
 		int pt = readReg(carry_st_idx[idx]);
@@ -351,7 +369,7 @@ module add(Cla_type#(n_t));
 					(carry_st_idx[i])<= readReg( carry_st_idx[a]);
 				end
 		endrule
-		*/
+*/
 
 	// rule add_a_b(flag_carry==1);
 
@@ -361,3 +379,186 @@ module add(Cla_type#(n_t));
 	
 
 endmodule
+
+
+module mul(Wallace_t#(n_t,n_w));
+
+	Integer n = valueOf (n_t);
+	Integer nw = valueOf(n_w);
+	Integer n_max = nw-1;
+
+
+	Reg#(int) final_r <- mkReg( fromInteger(n) );
+	Reg#(int) count <- mkReg(0);
+	Reg#(int) indx <- mkReg(0);
+	Reg#( Bit#(1)) swt <- mkConfigReg(0);
+	Reg#(int) w_idx <-mkReg(0);
+
+	Reg#(Bit#(1)) flag_pad1 <-mkConfigReg(0);
+	Reg#(Bit#(1)) flag_pad2 <-mkConfigReg(0);
+
+
+
+	Reg#(Bit#(1)) flag_input <-mkReg(0);
+	Reg#(Bit#(2)) flag_pp <- mkConfigReg(1);
+
+	Reg#(Bit#(1)) flag_cry <- mkConfigReg(0);
+
+	Vector #(n_t,Reg#(Bit#(1)) ) in1 <- replicateM( mkReg(0));
+	Vector #(n_t,Reg#(Bit#(1)) ) in2 <- replicateM( mkReg(0));
+
+
+	//vector of length 2*n
+	Vector #(n_t, Vector#( n_w,Reg#(Bit#(1))) ) partialp <- replicateM( replicateM(mkConfigReg(0) ) );
+
+	Reg#(Bit#(1)) flag_complete <- mkReg(0);
+
+	for (Integer i = 0; i < n; i = i+1)	
+		for (Integer j = i; j < i+n; j = j+1)
+			rule gen_pp(flag_input==1  && flag_pp>0);
+				Bit#(1) b = in2[j-i];
+				Bit#(1) a = in1[j-i];
+				if(b==0)
+					(partialp[i][j])<=0;
+				else
+					(partialp[i][j])<=a;
+				
+				if(i==n && j==2*n-1)
+					flag_pp<=flag_pp-1;
+					
+			endrule
+
+	for (Integer i = 0; i < nw; i = i+1)	
+	rule clac_sum_carry( flag_pp==0 && swt ==1 && flag_cry==0);
+		Bit#(1) a = 0;
+		Bit#(1) b = 0;
+		Bit#(1) c = 0;
+		int w_i = w_idx;
+		int w_i1 = w_i+1;
+		if( flag_pad1==0 && flag_pad2==0)
+			begin
+				int id1 = indx+1;
+				int id2 = indx+2;
+				a = readReg( partialp[indx][i] );
+				b = readReg( partialp[id1][i] );
+				c = readReg( partialp[id2][i]);
+			end
+		else if( flag_pad1==0 && flag_pad2==1)
+			begin
+				int id1 = indx+1;
+				a = readReg( partialp[indx][i] );
+				b = readReg( partialp[id1][i] );
+			end
+		else if( flag_pad1==1 && flag_pad2==1)
+			begin
+				a = readReg( partialp[indx][i] );
+			end
+
+		(partialp[w_i][i])<= a ^ b ^ c;
+			
+		Bit#(1) ab = a & b;
+		Bit#(1) bc = b & c;
+		Bit#(1) ca = c & a;
+		Bit#(1) crry = ab | bc | ca;
+
+		
+		(partialp[w_i1][i])<=crry;
+			
+		swt<=0;
+		flag_cry<=1;
+	
+	endrule
+
+	//shift
+	for (Integer i = nw-1; i > 0; i = i-1)
+	rule shiftcry(flag_pp==0 && swt==0 && flag_cry==1);
+		int w_i1 = w_idx+1;
+		Bit#(1) val = readReg( partialp[w_i1][i-1]);
+		(partialp[w_i1][i])<=val;
+		flag_cry<=0;
+	endrule
+
+
+
+	rule map_to_idx( flag_pp==0 && final_r > fromInteger(2) && swt==0 && flag_cry==0);
+		
+		int w_i1 = w_idx+1;
+		(partialp[w_i1][0])<=0;
+		
+		int idxa3 = indx;
+
+		if(count > 0 && idxa3<final_r)
+			begin
+			indx<=indx+3;
+			w_idx<=count;
+			count<=count+2;
+			end
+		else if( count > 0)
+			begin
+				final_r<=count;
+				count<=2;
+				w_idx<=0;
+				indx<=0;
+			end
+		else
+			count<=count+2;		//first
+	
+		
+		int n_i = final_r;
+		int id2 = indx+1;
+		int id3 = indx+2;
+	
+		
+		if(id2 < n_i && id3 < n_i)
+			begin
+			flag_pad1<=0;
+			flag_pad2<=0;
+			end
+		else if( id2 < n_i)
+			begin
+			flag_pad2<=1;
+			end
+		else
+			begin
+			flag_pad1<=1;
+			flag_pad2<=1;
+			end
+		
+		if(final_r > fromInteger(2))
+			swt<=1;
+		
+		
+	endrule
+
+
+	rule endfn( final_r ==2);
+		flag_complete<=1;
+	endrule
+
+
+	method Bit#(1) get_complete();
+		return flag_complete;
+	endmethod
+
+
+	method Action put_A(Bit#(1) a,int p);
+		(in1[p])<=a;
+	endmethod
+
+	method Action put_B(Bit#(1) a,int p);
+		(in2[p])<=a;
+	endmethod
+
+
+	method Bit#(1) get_SA( int p);
+		Bit#(1) b =  readReg(partialp[0][p]);
+		return b;
+	endmethod
+	
+	method Bit#(1) get_SB( int p);
+		Bit#(1) b =  readReg(partialp[1][p]);
+		return b;
+	endmethod
+
+endmodule
+
