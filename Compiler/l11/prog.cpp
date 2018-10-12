@@ -14,15 +14,10 @@ map<int, set<char> >Live;
 class Node{
 public:
 	char val;
-	set<Node*> adj;
 	vector< pair<int,int> > ranges;
 
 	Node(char ch){
 		val=ch;
-	}
-
-	void addEdge(Node* e){
-		this->adj.insert(e);
 	}
 
 	void addRange(int start,int end){
@@ -38,7 +33,7 @@ public:
 
 
 
-void makeEdges(map<char,Node*>graph){
+void makeLive(map<char,Node*>graph){
 	map<char,Node*>:: iterator itr;
 
 	for( itr=graph.begin();itr!=graph.end();itr++)
@@ -55,44 +50,45 @@ void makeEdges(map<char,Node*>graph){
 					continue;
 
 				for(int j=0;j<n2->ranges.size();j++){
-				
 					pair<int,int>p2 = n2->ranges[j];
-					// cout<<p1.first<<" "<<p2.first<<""<<"\n";
-					if(p1.first< p2.first && p2.first <= p1.second){
-						n1->addEdge(n2);
-						n2->addEdge(n1);
+					if(p1.first <= p2.first){
+						
+						if(p2.first <= p1.second  ){
+							map<int,set<char>>::iterator sitr;
+		
+							sitr=Live.find(p2.first);
+							if(sitr!=Live.end()){
+								(*sitr).second.insert(n1->val);
+							}
+							else{
+								set<char>temp;
+								temp.insert(n1->val);
+								Live.insert(pair<int,set<char>>(p2.first,temp));
+							}
+						}
+						
+						if( p2.second <= p1.second){
+							map<int,set<char>>::iterator sitr;
+							sitr=Live.find(p2.second);
+							if(sitr!=Live.end()){
+								(*sitr).second.insert(n1->val);
+							}
+							else{
+								set<char>temp;
+								temp.insert(p2.second);
+								Live.insert(pair<int,set<char>>(p2.second,temp));
+							}
 
+						}
 					}
-					else if(p2.first < p1.first && p1.first <= p2.second ){
-						n1->addEdge(n2);
-						n2->addEdge(n1);
-
-					}else if(p1.first==p2.first){
-						n1->addEdge(n2);
-						n2->addEdge(n1);
-					}
+					
+					
 				}
 			}
 		}
 	}
 }
 
-void printG(map<char,Node*>graph){
-	map<char,Node*>:: iterator itr;
-
-	
-
-	for( itr=graph.begin();itr!=graph.end();itr++){
-		
-		Node* n = (*itr).second;
-		cout<<n->val<<"- ";
-		set<Node*>:: iterator sit;
-		for(sit=n->adj.begin();sit!=n->adj.end();sit++){
-			cout<<(*sit)->val<<" ";
-		}
-		cout<<"\n";
-	}
-}
 
 void printLive(){
 	map<int,set<char>>::iterator sitr;
@@ -192,14 +188,6 @@ int main(){
 			Live.insert(pair<int,set<char>>(end,temp));
 		}
 
-
-		for(int i=st;i<=end;i++){
-			sitr=Live.find(i);
-			if(sitr!=Live.end()){
-				(*sitr).second.insert(ch);
-			}
-		}
-
 		// cout<<ch<<" "<<st<<" "<<end<<"\n";
 	}
 
@@ -213,8 +201,9 @@ int main(){
 			maxreg=s;
 	}
 
+	makeLive(Graph);
+	//printLive();
 
-	printLive();
 
 	int regCount = 0;
 	int spillCount = 0;
@@ -270,7 +259,7 @@ int main(){
 						spillCount++;
 						//add new map
 						cRegAlloc.insert(pair<char,int>(*itr,pr.second));
-						cout<<"spill "<<pr.first<<" "<<pr.second<<" for "<<*itr<<"\n";
+						//cout<<"spill "<<pr.first<<" "<<pr.second<<" for "<<*itr<<"\n";
 					}
 				}
 
