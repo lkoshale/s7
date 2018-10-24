@@ -8,8 +8,11 @@ import ConfigReg::*;
 (* synthesize *)
 module mkTb(Empty);
 
-    Vector#(3,Integer)vec = genVector();
-    let m_vec = cons(4, vec);
+    Vector#(0,Integer)vec=nil;
+    let m_vec1 = cons(1, vec);
+    let m_vec2 = cons(2, m_vec1);
+    let m_vec3 = cons(3, m_vec2);
+    let m_vec = cons(4, m_vec3);
 
     MergeSort m2 <- merge4;
     Reg#(Bit#(1))flag_in <-mkConfigReg(1); 
