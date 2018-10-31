@@ -65,6 +65,8 @@
     //unused var index of Lvar
     vector<int> unused;
 
+    set<int>removedLine;
+
     //fun
     void optimise(node* root);
 
@@ -575,16 +577,20 @@ void init_Lval();
 int static_compute(node* expr);
 bool rec_if(node* root);
 bool unused_var(node* root);
+void add_deadcode(node* root);
 void write_summary();
 
 void optimise(node* root){
 
-    for(int i=0;i<5;i++){
+    for(int i=0;i<10;i++){
         init_Lval();
         bool v1 = rec_const_prop(root);
         bool v2 = rec_const_fold(root);
-        cout<<i<<" "<<v1<<" "<<v2<<"\n";
-        if( v1==false && v2 == false)
+        init_Lval();
+        bool v3 = rec_if(root);
+
+        cout<<i<<"-"<<v1<<" "<<v3<<" "<<v2<<"\n";
+        if( v1==false && v2 == false && v3==false)
             break;
     
     }
@@ -741,31 +747,42 @@ bool rec_if(node* root){
         stm = root->children[0];
     else if(root->type == "stmt_list" && root->noc == 2)
         stm = root->children[1];
+
+    
     
     if(stm!=NULL && stm->type == "stmt" && stm->children[0]->type== "if_stmt"){
-
+        //cout<<stm->type<<"\n";
         if(stm->children[0]->noc == 5){
             node* expr = stm->children[0]->children[2];
-            node* stm = stm->children[0]->children[4];
+            node* istm = stm->children[0]->children[4];
 
+            cout<<"Here "<<static_compute(expr)<<"\n";
             if(static_compute(expr)==1){
                 // true if
             }
             else if(static_compute(expr)==0) {
                 if_smpl.push_back(0);
                 stm->children[0]->asmd = true;
-
+                
+                add_deadcode(stm->children[0]);
                 ans = true;
             }
+          //  cout<<istm->children[0]->asmd<<"\n";
 
         }
         else if(stm->children[0]->noc == 7 ){
-            node* expr = stm->children[2];
-            node* istm =  stm->children[4];
-            node* elst = stm->children[6];
+            node* expr = stm->children[0]->children[2];
+            node* istm =  stm->children[0]->children[4];
+            node* elst = stm->children[0]->children[6];
 
+            //int d = static_compute(expr);
+           // cout<<"Here "<<d<<"\n";
             if( static_compute(expr) ==1 ){
                 //keep if
+
+                add_deadcode(elst);
+                add_deadcode(expr);
+
                 if(root->noc==1)
                     root->children[0] = istm;
                 else if(root->noc==2)
@@ -776,6 +793,9 @@ bool rec_if(node* root){
                 ans = true;
             }else if(static_compute(expr)==0){
                 //keep else
+                add_deadcode(expr);
+                add_deadcode(istm);
+
                 if(root->noc==1)
                     root->children[0] = elst;
                 else if(root->noc==2)
@@ -814,11 +834,19 @@ bool rec_if(node* root){
 
 //for if 
 int static_compute(node* expr){
+    if(expr==NULL){
+        // cout<<"null";
+        return -1;
+    }
+        
     
     int ans = -1;
 
+    //cout<<"inside st "<<expr->type<<"\n";
+
     if(expr->noc==1 && expr->children[0]->type=="Pexpr"){
         node* pexp = expr->children[0];
+      //  cout<<"inside static pexpr\n";
         if(pexp->noc==1){
             if(pexp->children[0]->type == "IDENTIFIER"){
                 int val = Lget(pexp->children[0]->children[0]->type);
@@ -867,6 +895,7 @@ int static_compute(node* expr){
                 return -1;
             }
             else if(expr->children[0]->type==">"){
+            //    cout<<val1<<" "<<val2<<"\n";
                 if(val1 != INT_MAX && val2!=INT_MAX)
                     return val1>val2;
                 else
@@ -1156,7 +1185,39 @@ int Lget(string var){
     }
 }
 
+
+void add_deadcode(node* root){
+    if(root==NULL)
+        return;
+    
+    removedLine.insert(root->line);
+    for(int i=0;i<root->noc;i++)
+        add_deadcode(root->children[i]);
+
+}
+
+
+void rm_dead_opt(){
+   
+    for(auto sitr = removedLine.begin();sitr!=removedLine.end();sitr++){
+        map<int,int>::iterator cfit;
+        cfit = ConstantFold.find(*sitr);
+        if(cfit!= ConstantFold.end()){
+            ConstantFold.erase(cfit);
+        }
+
+        map<int, vector< pair<string,int> > > ::iterator cpit;
+        cpit = CProp.find(*sitr);
+        if(cpit!=CProp.end()){
+            CProp.erase(cpit);
+        }
+    }
+}
+
 void write_summary(){
+
+    rm_dead_opt();
+
     fprintf(smmry,"unused-vars\n");
     for(int i=0;i<unused.size();i++){
         fprintf(smmry,"%s\n",Lvar[unused[i]].c_str());
@@ -1277,6 +1338,11 @@ void getexp(node* root) {
 void getasm(node* root) {
     if(root == NULL)
         return;
+
+    if(root->type == "if_stmt" && root->asmd==true) {
+        return;
+    }
+
 
     if(root->type == "if_stmt" && !root->asmd) {
         root->asmd = true;
