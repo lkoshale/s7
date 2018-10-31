@@ -65,12 +65,14 @@
     //unused var index of Lvar
     vector<int> unused;
 
+    //Line no max operand
+    map<int,int> mstrengthR;
+
     set<int>removedLine;
 
     //fun
     void optimise(node* root);
 
-    
     //output
     FILE* smmry = fopen("summary.txt","w");
     FILE* assm = fopen("assembly.s","w");
@@ -577,6 +579,7 @@ void init_Lval();
 int static_compute(node* expr);
 bool rec_if(node* root);
 bool unused_var(node* root);
+void rec_strengthR(node* root);
 void add_deadcode(node* root);
 void write_summary();
 
@@ -585,6 +588,7 @@ void optimise(node* root){
     for(int i=0;i<10;i++){
         init_Lval();
         bool v1 = rec_const_prop(root);
+        init_Lval();
         bool v2 = rec_const_fold(root);
         init_Lval();
         bool v3 = rec_if(root);
@@ -595,6 +599,7 @@ void optimise(node* root){
     
     }
 
+    rec_strengthR(root);
     unused_var(root);
     write_summary();
 
@@ -643,7 +648,7 @@ bool rec_const_prop(node* root){
         }
     }
     else if(root->type=="scan_stmt"){
-       // printf("inside scan %s\n",root->children[0]->children[0]->type.c_str());
+     //   printf("inside scan %s\n",root->children[0]->children[0]->type.c_str());
         node* id = root->children[0];
         Lupdate(id->children[0]->type,INT_MAX);
       //  printf("scan passed\n");
@@ -651,6 +656,23 @@ bool rec_const_prop(node* root){
     else if(root->type=="expr"){
        // printf("inside exp\n");
         return rec_prop_id(root);
+    }
+    else if( root->type == "print_stmt"){
+        node* id = root->children[0];
+        
+        if(id->type == "IDENTIFIER" ){
+           
+            string var = id->children[0]->type;
+            int val = Lget(var);
+            if(val!=INT_MAX){
+                node* v = mk0(to_string(val)); v->line = root->line;
+                node* int_v = mk1("integerLit",v ); int_v->line = root->line;
+                root->children[0]= int_v;
+                insert_cprop(var,val,root->line);
+                ans = true;
+            }
+          //  cout<<"print "<<id->children[0]->type<<" "<<val<<" "<<root->line<<"\n";
+        }
     }
     else{
         //printf("inside not childs\n");
@@ -942,7 +964,18 @@ void insert_cprop(string var,int val,int line){
         CProp.insert( pair<int,vector< pair<string,int> > >(line,vec));
     }
     else{
-        (*it).second.push_back(pr);
+        bool found = false;
+        for(int i=0;i<(*it).second.size();i++){
+            pair<string,int> t = (*it).second[i];
+            if(t.first == pr.first ){
+                (*it).second[i].second = pr.second;
+                found = true;
+                break;
+            }
+        }
+        if(found==false){
+            (*it).second.push_back(pr);
+        }
     }
 }
 
@@ -1211,6 +1244,8 @@ void rm_dead_opt(){
         if(cpit!=CProp.end()){
             CProp.erase(cpit);
         }
+
+        //add strenth map
     }
 }
 
@@ -1227,7 +1262,9 @@ void write_summary(){
         fprintf(smmry,"%d\n",if_smpl[i]);
     
     fprintf(smmry,"\nstrength-reduction\n");
-    //add here
+    for(auto it=mstrengthR.begin();it!=mstrengthR.end();it++){
+        fprintf(smmry,"%d %d\n",it->first,it->second);
+    }
 
     fprintf(smmry,"\nconstant-folding\n");
     for(auto it= ConstantFold.begin();it!=ConstantFold.end();it++){
@@ -1250,6 +1287,85 @@ void write_summary(){
      fprintf(smmry,"\ncse\n");
      //add here
 }
+
+int get_powr2(int val){
+    int ans =-1;
+    int p = 1;
+    for(int i=0;i<=10;i++){
+        if(p == val){
+            ans = i;
+            break;
+        }
+        p= 2*p;
+    }
+    return ans;
+}
+
+void insert_pow(int lineNo,int val){
+    map<int,int>::iterator it;
+    it = mstrengthR.find(lineNo);
+    if( it== mstrengthR.end()){
+        mstrengthR.insert( pair<int,int>(lineNo,val) );
+    }
+    else{
+        if(val > it->second){
+            it->second = val;
+        }
+    }
+}
+
+
+void rec_strengthR(node* root){
+    if(root==NULL)
+        return ;
+    
+    if(root->type=="expr" && root->noc ==1){
+        if(root->children[0]->type=="*"){
+            node* pexp1 = root->children[0]->children[0];
+            node* pexp2 = root->children[0]->children[1];
+
+            if(pexp1->noc==3){
+                rec_strengthR(pexp1->children[1]);
+            }
+            
+            if( pexp2->noc == 3){
+                rec_strengthR(pexp2->children[1]);
+            }
+
+            if(pexp1->noc==1 and pexp2->noc==1){
+                //cout<<pexp1->children[0]->children[0]->type<<" "<<pexp2->children[0]->children[0]->type<<"\n";
+                if(pexp1->children[0]->type =="IDENTIFIER" && pexp2->children[0]->type== "integerLit"){
+                    int val = get_powr2(stoi(pexp2->children[0]->children[0]->type));
+                    if(val!=-1){
+                        pexp2->children[0]->children[0]->type = to_string(val);
+                        root->children[0]->type = "^^";
+                        insert_pow(root->line,val);
+                    }
+                }
+                else if(pexp1->children[0]->type == "integerLit" && pexp2->children[0]->type== "IDENTIFIER"){
+                    int val = get_powr2(stoi(pexp1->children[0]->children[0]->type));
+                    if(val!=-1){
+                        pexp1->children[0]->children[0]->type = to_string(val);
+                        root->children[0]->type = "^^";
+                        insert_pow(root->line,val);
+                    }
+                }
+            }
+        }
+        else{
+            for(int i=0;i<root->noc;i++){
+                rec_strengthR(root->children[i]);
+            }
+        }
+    }
+    else{
+        for(int i=0;i<root->noc;i++){
+            rec_strengthR(root->children[i]);
+        }
+    }
+
+}
+
 
 
 
@@ -1279,6 +1395,18 @@ void getexp(node* root) {
     }
     else if(root->type == "*" && root->noc == 2) {
         fprintf(assm,"\tpopq %%rbx\n\tpopq %%rcx\n\timull %%ebx, %%ecx\n\tpushq %%rcx\n");
+    }
+    else if(root->type == "^^" && root->noc == 2) {
+        node* pexp1 = root->children[0];
+        node* pexp2 = root->children[1];
+        if(pexp1->children[0]->type == "IDENTIFIER" && pexp2->children[0]->type == "integerLit" ){
+            int powr = stoi(pexp2->children[0]->children[0]->type);
+            fprintf(assm,"\tpopq %%rbx\n\tpopq %%rcx\n\tsall $%d, %%ecx\n\tpushq %%rcx\n",powr);
+        }
+        else if(pexp2->children[0]->type == "IDENTIFIER" && pexp1->children[0]->type == "integerLit" ){
+            int powr = stoi(pexp1->children[0]->children[0]->type);
+            fprintf(assm,"\tpopq %%rbx\n\tpopq %%rcx\n\tsall $%d, %%ebx\n\tpushq %%rcx\n",powr);
+        }
     }
     else if(root->type == "/") {
         fprintf(assm,"\tpopq %%rcx\n\tpopq %%rax\n\tcltd\n\tidivl %%ecx\n\tpushq %%rax\n");
@@ -1393,8 +1521,14 @@ void getasm(node* root) {
 
     if(root->type == "print_stmt" && !root->asmd) {
         root->asmd = true;
-        int addr = loc[currfun][root->children[0]->children[0]->type];
-        fprintf(assm,"\tmovl -%d(%%rbp), %%eax\n\tmovl %%eax, %%esi\n\tleaq    .LC0(%%rip), %%rdi\n\tmovl $0, %%eax\n\tcall printf@PLT\n",addr);      
+        if(root->children[0]->type== "IDENTIFIER"){
+            int addr = loc[currfun][root->children[0]->children[0]->type];
+            fprintf(assm,"\tmovl -%d(%%rbp), %%eax\n\tmovl %%eax, %%esi\n\tleaq    .LC0(%%rip), %%rdi\n\tmovl $0, %%eax\n\tcall printf@PLT\n",addr);      
+        }
+        else if(root->children[0]->type== "integerLit"){
+            int val = stoi(root->children[0]->children[0]->type);
+            fprintf(assm,"\tmovl $%d, %%eax\n\tmovl %%eax, %%esi\n\tleaq    .LC0(%%rip), %%rdi\n\tmovl $0, %%eax\n\tcall printf@PLT\n",val);      
+        }
     }
     else if( root->type == "scan_stmt" && !root->asmd){
         root->asmd = true;
@@ -1545,12 +1679,25 @@ string getlabel() {
 }
 
 void init_Lval(){
-    for(int i=0;i<Lvar.size();i++){
-        Lval.push_back(INT_MAX);
-        Lstate.push_back(-1);
-        //unint
+
+    if(Lval.size()==0 && Lstate.size()==0){
+
+        for(int i=0;i<Lvar.size();i++){
+            Lval.push_back(INT_MAX);
+            Lstate.push_back(-1);
+            //unint
+        }
+    }
+    else{
+        for(int i=0;i<Lvar.size();i++){
+            Lval[i]=INT_MAX;
+            Lstate[i] = -1;
+            //unint
+        }
+
     }
 }
+
 
 // void printtree(node* root) {
 //     nn++;
