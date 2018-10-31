@@ -635,7 +635,7 @@ void optimise(node* root){
     
     init_var_versn();
     rec_build_cse(root);
-    //print_cse_map();
+    print_cse_map();
     remove_cse();
     
     write_summary();
@@ -681,11 +681,13 @@ bool rec_const_prop(node* root){
             }
         }
         else{
-            return rec_prop_id(epr);
+            bool ans = rec_prop_id(epr);
+            Lupdate(id->children[0]->type,INT_MAX);
+            return ans;
         }
     }
     else if(root->type=="scan_stmt"){
-     //   printf("inside scan %s\n",root->children[0]->children[0]->type.c_str());
+      //  printf("inside scan %s\n",root->children[0]->children[0]->type.c_str());
         node* id = root->children[0];
         Lupdate(id->children[0]->type,INT_MAX);
       //  printf("scan passed\n");
@@ -1283,8 +1285,8 @@ void rm_dead_opt(){
 }
 
 
-map<int,vector<int> > cse_update(){
-    map<int,vector<int> > mymap;
+map<string,vector<int> > cse_update(){
+    map<string,vector<int> > mymap;
 
     for(auto it=cse_ans.begin();it!=cse_ans.end();it++){
         vector<int> vec;
@@ -1303,12 +1305,30 @@ map<int,vector<int> > cse_update(){
             }
         }
 
-        mymap.insert(pair<int, vector<int> >(vec[0],vec) );
+        mymap.insert(pair<string, vector<int> >(it->first,vec) );
 
     }
 
     return mymap;
 
+}
+
+void modify_cprop(){
+    for(auto it= CProp.begin();it!=CProp.end();it++){
+        
+        vector< pair<string,int> > vec;
+        for(int j=0;j<Lvar.size();j++){
+            string str = Lvar[j];
+            for(int i =0;i< it->second.size();i++){
+                pair<string,int> p = it->second[i];
+                if(p.first==str){
+                    vec.push_back(p);
+                }
+            }
+        }
+
+        it->second = vec;
+    }
 }
 
 void write_summary(){
@@ -1334,6 +1354,7 @@ void write_summary(){
     }
 
     fprintf(smmry,"\nconstant-propagation\n");
+    modify_cprop();
     for(auto it= CProp.begin();it!=CProp.end();it++){
         
         fprintf(smmry,"%d ",it->first);
@@ -1347,7 +1368,7 @@ void write_summary(){
      }
 
     fprintf(smmry,"\ncse\n");
-    map<int,vector<int> >cse_temp = cse_update();
+    map<string,vector<int> >cse_temp = cse_update();
     for( auto it= cse_temp.begin(); it!= cse_temp.end();it++){
         for( int i=0;i<it->second.size();i++){
             fprintf(smmry,"%d ",it->second[i]);
@@ -1646,7 +1667,7 @@ void remove_cse(){
                         continue;
 
                     if(strcmp(it->second[i],sit->second[j])==0){
-                       // printf("match %s %s -- %d %d\n",it->second[i],sit->second[j],line1,line2);
+                        printf("match %s %s -- %d %d\n",it->second[i],sit->second[j],line1,line2);
                         ans_cse_insert(it->second[i],line1,line2);
                 
                     }
