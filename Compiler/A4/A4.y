@@ -77,10 +77,14 @@
 
     //array of dynamic strings
     //line num eubsexp strings
-    map< int,vector<char*> > cse_map;
+    map< int,char**> cse_map;
+    map<int,int> cse_map_len;
 
     //vector sst
     vector<int>var_versn;
+
+    map<string,set<int> > cse_ans;
+    map<string,set<int> > cse_ans_dup;
 
     //output
     FILE* smmry = fopen("summary.txt","w");
@@ -595,12 +599,14 @@ void rec_build_cse(node* root);
 
 void write_summary();
 
+void remove_cse();
+
 void print_cse_map(){
     
     for(auto it= cse_map.begin();it!=cse_map.end();it++){
         printf("%d-",it->first);
-        cout<<(*it).second.size()<<" -- ";
-        for(int i=0;i<(*it).second.size();i++){
+        int len = cse_map_len[it->first];
+        for(int i=0;i<len;i++){
             printf(" %s, ",(*it).second[i]);
         }    
         printf("\n");
@@ -609,30 +615,30 @@ void print_cse_map(){
 
 void optimise(node* root){
 
-    // for(int i=0;i<10;i++){
-    //     init_Lval();
-    //     bool v1 = rec_const_prop(root);
-    //     init_Lval();
-    //     bool v2 = rec_const_fold(root);
-    //     init_Lval();
-    //     bool v3 = rec_if(root);
+    for(int i=0;i<10;i++){
+        init_Lval();
+        bool v1 = rec_const_prop(root);
+        init_Lval();
+        bool v2 = rec_const_fold(root);
+        init_Lval();
+        bool v3 = rec_if(root);
 
-    //     cout<<i<<"-"<<v1<<" "<<v3<<" "<<v2<<"\n";
-    //     if( v1==false && v2 == false && v3==false)
-    //         break;
+        cout<<i<<"-"<<v1<<" "<<v3<<" "<<v2<<"\n";
+        if( v1==false && v2 == false && v3==false)
+            break;
     
-    // }
+    }
 
-    // rec_strengthR(root);
-    // unused_var(root);
-    // write_summary();
+    rec_strengthR(root);
 
-
-
+    unused_var(root);
+    
     init_var_versn();
     rec_build_cse(root);
-    print_cse_map();
-
+    //print_cse_map();
+    remove_cse();
+    
+    write_summary();
 
 }
 
@@ -809,9 +815,11 @@ bool rec_if(node* root){
             node* expr = stm->children[0]->children[2];
             node* istm = stm->children[0]->children[4];
 
-            cout<<"Here "<<static_compute(expr)<<"\n";
+            //cout<<"Here "<<static_compute(expr)<<"\n";
             if(static_compute(expr)==1){
                 // true if
+                if_smpl.push_back(1);
+                add_deadcode(expr);
             }
             else if(static_compute(expr)==0) {
                 if_smpl.push_back(0);
@@ -1181,15 +1189,9 @@ void unused_var_rec(node* root){
     if(root->type=="assign_stmt"){
         node* id = root->children[0]->children[0];
         node* epr = root->children[0]->children[1];
-        
-        if(epr->noc==1 && epr->children[0]->type=="Pexpr"){
-            node* pexp = epr->children[0];
-            if(pexp->noc ==1 ){
-                if(pexp->children[0]->type =="integerLit"){
-                    Lupdate(id->children[0]->type,stoi(pexp->children[0]->children[0]->type));
-                }
-            }
-        }
+    
+        node* pexp = epr->children[0];
+        Lupdate(id->children[0]->type,INT_MAX);
     }
     else if(root->type=="scan_stmt"){
         node* id = root->children[0];
@@ -1280,6 +1282,35 @@ void rm_dead_opt(){
     }
 }
 
+
+map<int,vector<int> > cse_update(){
+    map<int,vector<int> > mymap;
+
+    for(auto it=cse_ans.begin();it!=cse_ans.end();it++){
+        vector<int> vec;
+        map<string,set<int>>::iterator dup;
+        dup = cse_ans_dup.find(it->first);
+        
+        for( auto sit = it->second.begin(); sit!= it->second.end();sit++) {
+            vec.push_back(*sit);
+            
+            if(dup!=cse_ans_dup.end()){
+                set<int>::iterator sdup;
+                sdup = dup->second.find(*sit);
+                if(sdup != dup->second.end()){
+                    vec.push_back(*sit);
+                }
+            }
+        }
+
+        mymap.insert(pair<int, vector<int> >(vec[0],vec) );
+
+    }
+
+    return mymap;
+
+}
+
 void write_summary(){
 
     rm_dead_opt();
@@ -1315,8 +1346,16 @@ void write_summary(){
        
      }
 
-     fprintf(smmry,"\ncse\n");
-     //add here
+    fprintf(smmry,"\ncse\n");
+    map<int,vector<int> >cse_temp = cse_update();
+    for( auto it= cse_temp.begin(); it!= cse_temp.end();it++){
+        for( int i=0;i<it->second.size();i++){
+            fprintf(smmry,"%d ",it->second[i]);
+        }
+        fprintf(smmry,"\n");
+    }
+    
+
 }
 
 int get_powr2(int val){
@@ -1415,18 +1454,16 @@ int get_var_versn(string var){
     return -1;
 }
 
-char* rec_add_exp( node* expr, vector<char*> vec ){
+char* rec_add_exp( node* expr, char** vec,int* idx ){
     if(expr==NULL)
         return NULL;
-
-    cout<<"rec add exp\n";
     
     if(expr->noc==1){
         if(expr->children[0]->type == "Pexpr"){
             node* pexp = expr->children[0];
             char* s = (char*)malloc(sizeof(char)*100);
             if(pexp->noc==3 ){
-                sprintf(s,"( %s )",rec_add_exp(pexp->children[1],vec));
+                sprintf(s,"(%s)",rec_add_exp(pexp->children[1],vec,idx));
             }else{
                 if(pexp->children[0]->type == "IDENTIFIER"){
                     string var  = pexp->children[0]->children[0]->type ;
@@ -1440,10 +1477,9 @@ char* rec_add_exp( node* expr, vector<char*> vec ){
                     sprintf(s,"%s",pexp->children[0]->children[0]->type.c_str());
                 }
             }
-            vec.push_back(s);
-            for(int i=0;i<vec.size();i++){
-                printf(" here %s\n",vec[i]);
-            }
+
+            vec[*idx]=s;
+            (*idx)+=1;
             return s;
 
         }
@@ -1455,7 +1491,7 @@ char* rec_add_exp( node* expr, vector<char*> vec ){
             char* s1= (char*)malloc(sizeof(char)*200);
             char* s2= (char*)malloc(sizeof(char)*100);;
             if(pexp1->noc==3 ){
-                sprintf(s1,"( %s )",rec_add_exp(pexp1->children[1],vec));
+                sprintf(s1,"(%s)",rec_add_exp(pexp1->children[1],vec,idx));
             }else{
                 if(pexp1->children[0]->type == "IDENTIFIER"){
                     string var  = pexp1->children[0]->children[0]->type ;
@@ -1471,7 +1507,7 @@ char* rec_add_exp( node* expr, vector<char*> vec ){
             }
             
             if(pexp2->noc==3){
-               sprintf(s2,"( %s )",rec_add_exp(pexp2->children[1],vec));
+               sprintf(s2,"(%s)",rec_add_exp(pexp2->children[1],vec,idx));
             }
             else{
                 if(pexp2->children[0]->type == "IDENTIFIER"){
@@ -1489,11 +1525,8 @@ char* rec_add_exp( node* expr, vector<char*> vec ){
 
             sprintf(s1,"%s%s%s",s1,op.c_str(),s2);
             
-            vec.push_back(s1);
-            for(int i=0;i<vec.size();i++){
-                //
-            }
-            cout<<"\n";
+            vec[*idx]=s1;
+            (*idx)+=1;
             
             return s1;
 
@@ -1505,7 +1538,7 @@ char* rec_add_exp( node* expr, vector<char*> vec ){
 
         char* s = (char*)malloc(sizeof(char)*100);
         if(pexp->noc==3 ){
-            sprintf(s,"( %s )",rec_add_exp(pexp->children[1],vec));
+            sprintf(s,"(%s)",rec_add_exp(pexp->children[1],vec,idx));
         }else{
             if(pexp->children[0]->type == "IDENTIFIER"){
                 string var  = pexp->children[0]->children[0]->type ;
@@ -1521,7 +1554,8 @@ char* rec_add_exp( node* expr, vector<char*> vec ){
         }
     
         sprintf(s,"%s%s",op.c_str(),s);
-        vec.push_back(s);
+        vec[*idx]=s;
+        (*idx)+=1;
         return s;
     }
 
@@ -1535,18 +1569,24 @@ void rec_build_cse(node* root){
     if(root->type == "assign_stmt"){
         node* id = root->children[0]->children[0];
         node* expr = root->children[0]->children[1];
-        vector<char*> subexp;
-        rec_add_exp(expr,subexp);
-        cout<<"\n";
-        for(int i=0;i<subexp.size();i++){
-            printf("in rec %s ",subexp[i]);
-        }
-        cout<<"\n";
-        cse_map.insert(pair< int,vector<char* > >(root->line,subexp));
+        char** subexp = (char**)malloc(sizeof(char*)*100);
+        int* idx = (int*)malloc(sizeof(int));
+        *idx=0;
+        rec_add_exp(expr,subexp,idx);
+        // cout<<"\n";
+        // for(int i=0;i<(*idx);i++){
+        //     printf("in rec %s ",subexp[i]);
+        // }
+        // cout<<"\n";
+        cse_map.insert(pair< int,char** >(root->line,subexp));
+        cse_map_len.insert(pair<int,int>(root->line,*idx));
         update_var_versn(id->children[0]->type);
     }
     else if(root->type == "scan_stmt"){
         update_var_versn(root->children[0]->children[0]->type);
+    }
+    else if(root->type== "if_stmt" && root->asmd == true){
+        return;
     }
     else{
         for(int i=0;i<root->noc;i++){
@@ -1555,8 +1595,69 @@ void rec_build_cse(node* root){
     }
 }
 
+void ans_cse_insert(char* str,int l1,int l2){
 
+    // map<string,set<int> > cse_ans;
+    // map<string,set<int> > cse_ans_dup;
 
+    map<string,set<int> > :: iterator org;
+   
+
+    org = cse_ans.find(str);
+    if(org==cse_ans.end()){
+        set<int> temp;
+        temp.insert(l1);
+        temp.insert(l2);
+
+        cse_ans.insert(pair<string,set<int> >(str,temp) );
+    }
+    else{
+        org->second.insert(l1);
+        org->second.insert(l2);
+    }
+
+    if(l1==l2){
+        map<string,set<int> >:: iterator dup;
+        dup = cse_ans_dup.find(str);
+        if(dup== cse_ans_dup.end()){
+            set<int>temp;
+            temp.insert(l1);
+            cse_ans_dup.insert(pair<string,set<int> >(str,temp) );
+        }
+        else{
+            dup->second.insert(l1);
+        }
+    }
+
+}
+
+void remove_cse(){
+
+    for(auto it= cse_map.begin();it!=cse_map.end();it++){
+        int line1 = it->first;
+        int len1 = cse_map_len[it->first];
+
+        for(int i=0;i<len1;i++){
+            for(auto sit=it;sit!=cse_map.end();sit++){
+                int line2 = sit->first;
+                int len2 = cse_map_len[sit->first];
+                for(int j=0;j<len2;j++){
+                    if(line1==line2 && i==j)
+                        continue;
+
+                    if(strcmp(it->second[i],sit->second[j])==0){
+                       // printf("match %s %s -- %d %d\n",it->second[i],sit->second[j],line1,line2);
+                        ans_cse_insert(it->second[i],line1,line2);
+                
+                    }
+                }
+            }
+        }   
+        
+
+    }    
+
+}
 
 void getexp(node* root) {
     if(root == NULL)
