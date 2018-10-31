@@ -73,6 +73,15 @@
     //fun
     void optimise(node* root);
 
+    void cse(node* root);
+
+    //array of dynamic strings
+    //line num eubsexp strings
+    map< int,vector<char*> > cse_map;
+
+    //vector sst
+    vector<int>var_versn;
+
     //output
     FILE* smmry = fopen("summary.txt","w");
     FILE* assm = fopen("assembly.s","w");
@@ -581,27 +590,49 @@ bool rec_if(node* root);
 bool unused_var(node* root);
 void rec_strengthR(node* root);
 void add_deadcode(node* root);
+void init_var_versn();
+void rec_build_cse(node* root);
+
 void write_summary();
+
+void print_cse_map(){
+    
+    for(auto it= cse_map.begin();it!=cse_map.end();it++){
+        printf("%d-",it->first);
+        cout<<(*it).second.size()<<" -- ";
+        for(int i=0;i<(*it).second.size();i++){
+            printf(" %s, ",(*it).second[i]);
+        }    
+        printf("\n");
+    }
+}
 
 void optimise(node* root){
 
-    for(int i=0;i<10;i++){
-        init_Lval();
-        bool v1 = rec_const_prop(root);
-        init_Lval();
-        bool v2 = rec_const_fold(root);
-        init_Lval();
-        bool v3 = rec_if(root);
+    // for(int i=0;i<10;i++){
+    //     init_Lval();
+    //     bool v1 = rec_const_prop(root);
+    //     init_Lval();
+    //     bool v2 = rec_const_fold(root);
+    //     init_Lval();
+    //     bool v3 = rec_if(root);
 
-        cout<<i<<"-"<<v1<<" "<<v3<<" "<<v2<<"\n";
-        if( v1==false && v2 == false && v3==false)
-            break;
+    //     cout<<i<<"-"<<v1<<" "<<v3<<" "<<v2<<"\n";
+    //     if( v1==false && v2 == false && v3==false)
+    //         break;
     
-    }
+    // }
 
-    rec_strengthR(root);
-    unused_var(root);
-    write_summary();
+    // rec_strengthR(root);
+    // unused_var(root);
+    // write_summary();
+
+
+
+    init_var_versn();
+    rec_build_cse(root);
+    print_cse_map();
+
 
 }
 
@@ -1366,6 +1397,164 @@ void rec_strengthR(node* root){
 
 }
 
+void update_var_versn(string var){
+    for(int i=0;i<Lvar.size();i++){
+        if(Lvar[i]==var){
+            var_versn[i]+=1;
+        }
+    }
+}
+
+int get_var_versn(string var){
+    for(int i=0;i<Lvar.size();i++){
+        if(Lvar[i]==var){
+            return var_versn[i];
+        }
+    }
+
+    return -1;
+}
+
+char* rec_add_exp( node* expr, vector<char*> vec ){
+    if(expr==NULL)
+        return NULL;
+
+    cout<<"rec add exp\n";
+    
+    if(expr->noc==1){
+        if(expr->children[0]->type == "Pexpr"){
+            node* pexp = expr->children[0];
+            char* s = (char*)malloc(sizeof(char)*100);
+            if(pexp->noc==3 ){
+                sprintf(s,"( %s )",rec_add_exp(pexp->children[1],vec));
+            }else{
+                if(pexp->children[0]->type == "IDENTIFIER"){
+                    string var  = pexp->children[0]->children[0]->type ;
+                    int versn = get_var_versn(var);
+                    if(versn!=-1){
+                        var += to_string(versn);
+                    }
+                    sprintf(s,"%s",var.c_str());
+                }
+                else if(pexp->children[0]->type == "integerLit"){
+                    sprintf(s,"%s",pexp->children[0]->children[0]->type.c_str());
+                }
+            }
+            vec.push_back(s);
+            for(int i=0;i<vec.size();i++){
+                printf(" here %s\n",vec[i]);
+            }
+            return s;
+
+        }
+        else{
+            string op = expr->children[0]->type;
+            node* pexp1 = expr->children[0]->children[0];
+            node* pexp2 = expr->children[0]->children[1];
+
+            char* s1= (char*)malloc(sizeof(char)*200);
+            char* s2= (char*)malloc(sizeof(char)*100);;
+            if(pexp1->noc==3 ){
+                sprintf(s1,"( %s )",rec_add_exp(pexp1->children[1],vec));
+            }else{
+                if(pexp1->children[0]->type == "IDENTIFIER"){
+                    string var  = pexp1->children[0]->children[0]->type ;
+                    int versn = get_var_versn(var);
+                    if(versn!=-1){
+                        var += to_string(versn);
+                    }
+                   sprintf(s1,"%s",var.c_str());
+                }
+                else if(pexp1->children[0]->type == "integerLit"){
+                    sprintf(s1,"%s",pexp1->children[0]->children[0]->type.c_str());
+                }
+            }
+            
+            if(pexp2->noc==3){
+               sprintf(s2,"( %s )",rec_add_exp(pexp2->children[1],vec));
+            }
+            else{
+                if(pexp2->children[0]->type == "IDENTIFIER"){
+                    string var  = pexp2->children[0]->children[0]->type ;
+                    int versn = get_var_versn(var);
+                    if(versn!=-1){
+                        var += to_string(versn);
+                    }
+                    sprintf(s2,"%s",var.c_str());
+                }
+                else if(pexp2->children[0]->type == "integerLit"){
+                   sprintf(s2,"%s",pexp2->children[0]->children[0]->type.c_str());
+                }
+            }
+
+            sprintf(s1,"%s%s%s",s1,op.c_str(),s2);
+            
+            vec.push_back(s1);
+            for(int i=0;i<vec.size();i++){
+                //
+            }
+            cout<<"\n";
+            
+            return s1;
+
+        }
+    }
+    else if( expr-> noc == 2){
+        string op = expr->children[0]->type;
+        node* pexp = expr->children[1];
+
+        char* s = (char*)malloc(sizeof(char)*100);
+        if(pexp->noc==3 ){
+            sprintf(s,"( %s )",rec_add_exp(pexp->children[1],vec));
+        }else{
+            if(pexp->children[0]->type == "IDENTIFIER"){
+                string var  = pexp->children[0]->children[0]->type ;
+                int versn = get_var_versn(var);
+                if(versn!=-1){
+                    var += to_string(versn);
+                }
+                sprintf(s,"%s",var.c_str());
+            }
+            else if(pexp->children[0]->type == "integerLit"){
+                sprintf(s,"%s",pexp->children[0]->children[0]->type.c_str());
+            }
+        }
+    
+        sprintf(s,"%s%s",op.c_str(),s);
+        vec.push_back(s);
+        return s;
+    }
+
+    return NULL;
+}
+
+void rec_build_cse(node* root){
+    if(root==NULL)
+        return;
+
+    if(root->type == "assign_stmt"){
+        node* id = root->children[0]->children[0];
+        node* expr = root->children[0]->children[1];
+        vector<char*> subexp;
+        rec_add_exp(expr,subexp);
+        cout<<"\n";
+        for(int i=0;i<subexp.size();i++){
+            printf("in rec %s ",subexp[i]);
+        }
+        cout<<"\n";
+        cse_map.insert(pair< int,vector<char* > >(root->line,subexp));
+        update_var_versn(id->children[0]->type);
+    }
+    else if(root->type == "scan_stmt"){
+        update_var_versn(root->children[0]->children[0]->type);
+    }
+    else{
+        for(int i=0;i<root->noc;i++){
+            rec_build_cse(root->children[i]);
+        }
+    }
+}
+
 
 
 
@@ -1695,6 +1884,18 @@ void init_Lval(){
             //unint
         }
 
+    }
+}
+
+void init_var_versn(){
+    if(var_versn.size()==0){
+        for(int i=0;i<Lvar.size();i++){
+            var_versn.push_back(0);
+        }
+    }else{
+        for(int i=0;i<Lvar.size();i++){
+            var_versn[i]=0;
+        }
     }
 }
 
