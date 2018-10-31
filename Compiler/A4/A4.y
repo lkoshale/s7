@@ -557,7 +557,7 @@ int main(void) {
     yyparse();
 
     optimise(root);
-    printf("\n\n\n\n");
+    
     top = (int)(16 * (ceil(variables/4.0)));
     // cout << top << endl;
     // for(auto &it:loc) {
@@ -623,7 +623,6 @@ void optimise(node* root){
         init_Lval();
         bool v3 = rec_if(root);
 
-        cout<<i<<"-"<<v1<<" "<<v3<<" "<<v2<<"\n";
         if( v1==false && v2 == false && v3==false)
             break;
     
@@ -635,7 +634,7 @@ void optimise(node* root){
     
     init_var_versn();
     rec_build_cse(root);
-    print_cse_map();
+ //   print_cse_map();
     remove_cse();
     
     write_summary();
@@ -1667,7 +1666,7 @@ void remove_cse(){
                         continue;
 
                     if(strcmp(it->second[i],sit->second[j])==0){
-                        printf("match %s %s -- %d %d\n",it->second[i],sit->second[j],line1,line2);
+                       // printf("match %s %s -- %d %d\n",it->second[i],sit->second[j],line1,line2);
                         ans_cse_insert(it->second[i],line1,line2);
                 
                     }
