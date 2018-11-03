@@ -84,7 +84,7 @@ module merge2(MergeSort);
         flag_complete<=1;
         flag_in<=0;
 
-        $display("merge2 %d %d",a,b);
+       // $display("merge2 %d %d",a,b);
 
     endrule
 
@@ -213,7 +213,7 @@ def gen_merge_end(N):
     str+="""\n begin
             oe1.set_input_flag();
             flag_send_mer<=0;
-            $display("In call merge %d %d",mL1.get_result(i),mR1.get_result(i));
+           // $display("In call merge %d %d",mL1.get_result(i),mR1.get_result(i));
             end
         endrule
         """
@@ -410,9 +410,86 @@ endmodule
 """
 
 
+def gen_test_bench(N,array):
 
-def print_help(N):
-    print(testbench)
+    str="""import Vector::*;
+        import ConfigReg::*;
+
+        (* synthesize *)
+        module mkTb(Empty);
+        """
+    
+    str+="\n Vector#(0,Integer) my_vec0=nil;\n"
+    #add vectore here
+    for i in range(0,len(array)):
+        if i!= (len(array)-1 ):
+            str+=" let my_vec{} = cons({}, my_vec{});\n".format(i+1,array[N-1-i],i)
+        else:
+            str+=" let m_vec = cons({}, my_vec{});\n".format(array[N-1-i],i)
+
+
+    str+="\nMergeSort m2 <- merge{};\n".format(N)
+    str+= """
+    Reg#(Bit#(1))flag_in <-mkConfigReg(1); 
+    """
+
+    str+="\n for(Integer i=0;i<{};i=i+1)\n".format(N)
+    str+="""\nrule rl1(flag_in==1);
+        int a = fromInteger(m_vec[i]);
+        m2.take_input(a,i);
+        """
+
+    str+="\n if(i=={})\n".format(N-1)
+    str+="""
+            begin
+                flag_in<=0;
+                m2.set_input_flag();
+            end
+        endrule
+        """
+
+    str+="\nrule r2(m2.get_complete()==1);\n"
+    str+='\n$display("List:'
+    for i in range(0,len(array)):
+        str+=" %d "
+    
+    str+='", '
+    for i in range(0,len(array)):
+        if i== len(array)-1:
+            str+=" m_vec[{}] ".format(i)             
+        else:
+            str+=" m_vec[{}], ".format(i)
+    
+    str+=");\n"
+
+    str+='\n$display("Sorted:'
+    for i in range(0,len(array)):
+        str+=" %d "
+    
+    str+='", '
+    for i in range(0,len(array)):
+        if i == len(array)-1:
+            str+=" m2.get_result({}) ".format(i)
+        else:
+            str+=" m2.get_result({}), ".format(i)
+    
+    str+=");\n"
+
+    str+="\n $finish(0);\n"
+    str+="""endrule
+        
+            endmodule
+        
+        """
+
+    return str
+
+
+
+
+
+def print_help(N,array):
+    print(gen_test_bench(N,array))
     print(interface_mergesort)
     print(interface_oddeven)
     
@@ -426,5 +503,11 @@ def print_help(N):
     print(merge2)
     print(oddeven00)
 
-print_help(16)
+
+n = int(input())
+arr_str=input()
+arr= arr_str.split(" ")
+arr = [ int(x) for x in arr ]
+
+print_help(n,arr)
 
