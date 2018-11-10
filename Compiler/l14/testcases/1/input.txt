@@ -1,0 +1,10 @@
+50 worst-fit
+malloc p1 15
+malloc p2 15
+malloc p3 15
+free p2
+malloc p4 5
+malloc p5 5
+free p1
+malloc p6 2
+free p3

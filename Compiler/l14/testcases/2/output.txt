@@ -1,0 +1,8 @@
+success
+success
+out-of-memory error
+invalid-pointer error
+success
+success
+
+leaked-memory
