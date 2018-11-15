@@ -1,0 +1,7 @@
+20 first-fit
+malloc p1 10
+malloc p2 10
+malloc p3 10
+free p3
+free p2
+free p1
